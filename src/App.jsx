@@ -7,18 +7,22 @@ const VisaInformation = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Get the API base URL from environment variables
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
   useEffect(() => {
     fetchCountries();
   }, []);
 
   const fetchCountries = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/countries');
+      const response = await fetch(`${API_BASE_URL}/countries`);
       if (!response.ok) throw new Error('Failed to fetch countries');
       const data = await response.json();
       setCountries(data);
     } catch (err) {
       setError('Failed to load countries');
+      console.error('Error fetching countries:', err);
     }
   };
 
@@ -31,12 +35,13 @@ const VisaInformation = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`http://localhost:5000/api/visa-info/${selectedCountry}`);
+      const response = await fetch(`${API_BASE_URL}/visa-info/${encodeURIComponent(selectedCountry)}`);
       if (!response.ok) throw new Error('Failed to fetch visa information');
       const data = await response.json();
       setVisaInfo(data);
     } catch (err) {
       setError('Failed to load visa information');
+      console.error('Error fetching visa info:', err);
     } finally {
       setLoading(false);
     }
