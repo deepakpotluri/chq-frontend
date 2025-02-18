@@ -146,7 +146,7 @@ const CountryDetails = () => {
             Visa Requirements & Travel Access
           </p>
           <p className="text-gray-600 text-sm sm:text-base">
-            If you are having this {data.name} passport you can travel with below types of visas for the following countries
+            With {data.name} passport you can travel with below types of visas for the following countries
           </p>
 
           <motion.div
@@ -155,14 +155,16 @@ const CountryDetails = () => {
             className="max-w-2xl mx-auto mb-8 sm:mb-12"
           >
             <div className="relative group">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
               <input
                 type="text"
                 placeholder="Search countries..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base rounded-xl sm:rounded-2xl border border-gray-200 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition-all duration-300 shadow-sm hover:shadow-md pl-12"
+               className="w-full px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base rounded-xl sm:rounded-2xl border border-gray-200 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition-all duration-300 shadow-sm hover:shadow-md pl-12 sm:pl-14"
               />
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             </div>
           </motion.div>
 
@@ -200,7 +202,7 @@ const CountryDetails = () => {
                       {title}
                     </h2>
                     <div className={`${countColor} px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium`}>
-                      {count} {count === 1 ? 'Country' : 'Countries'}
+                      {count} {count === 1 ? 'Country' : 'Destinations'}
                     </div>
                   </div>
                   

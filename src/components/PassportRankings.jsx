@@ -1,4 +1,3 @@
-// PassportRankings.jsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -13,6 +12,8 @@ const PassportRankings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,6 +37,67 @@ const PassportRankings = () => {
     setTimeout(() => {
       navigate(`/country/${encodeURIComponent(country)}`);
     }, 300);
+  };
+
+  const isGeolocationSupported = () => {
+    return 'geolocation' in navigator;
+  };
+
+  const handleAutoLocation = async () => {
+    setLocationLoading(true);
+    setLocationError(null);
+
+    if (!isGeolocationSupported()) {
+      setLocationError('Geolocation is not supported by your browser');
+      setLocationLoading(false);
+      return;
+    }
+
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+          }
+        );
+      });
+
+      const { latitude, longitude } = position.coords;
+      const response = await axios.get(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+      );
+
+      if (response.data && response.data.countryName) {
+        setSearchQuery(response.data.countryName);
+        setLocationError(null);
+      } else {
+        throw new Error('Unable to determine country from coordinates');
+      }
+    } catch (error) {
+      let errorMessage;
+      
+      switch(error.code) {
+        case 1:
+          errorMessage = 'Location access denied. Please enable location permissions';
+          break;
+        case 2:
+          errorMessage = 'Unable to determine your location. Please try again';
+          break;
+        case 3:
+          errorMessage = 'Location request timed out. Please try again';
+          break;
+        default:
+          errorMessage = 'Failed to detect your location';
+      }
+      
+      setLocationError(errorMessage);
+    } finally {
+      setLocationLoading(false);
+    }
   };
 
   const filteredRankings = rankings.filter(rankData =>
@@ -72,7 +134,7 @@ const PassportRankings = () => {
       </div>
     );
   }
-
+  
   if (error) {
     return (
       <motion.div
@@ -129,12 +191,12 @@ const PassportRankings = () => {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="max-w-2xl mx-auto mb-8 sm:mb-12"
+          className="max-w-2xl mx-auto mb-8 sm:mb-12 space-y-4"
         >
           <div className="relative group">
             <input
               type="text"
-              placeholder="Search countries (e.g. 'India', 'Germany')"
+              placeholder="Select your passport  (e.g. 'India', 'Germany')"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base rounded-xl sm:rounded-2xl border border-gray-200 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition-all duration-300 shadow-sm hover:shadow-md pr-12"
@@ -155,8 +217,37 @@ const PassportRankings = () => {
               </svg>
             </div>
           </div>
-        </motion.div>
 
+          <button
+            onClick={handleAutoLocation}
+            disabled={locationLoading}
+            className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white border border-gray-200 rounded-xl sm:rounded-2xl hover:border-indigo-300 hover:bg-indigo-50 transition-all duration-200 text-gray-700 font-medium flex items-center justify-center gap-2 sm:gap-3 text-sm sm:text-base shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {locationLoading ? (
+              <>
+                <svg className="animate-spin h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Detecting Location...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Auto-fetch Location</span>
+              </>
+            )}
+          </button>
+
+          {locationError && (
+            <div className="text-red-600 text-sm text-center">
+              {locationError}
+            </div>
+          )}
+        </motion.div>
         {searchQuery && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -212,33 +303,17 @@ const PassportRankings = () => {
                   </div>
 
                   <div className="space-y-2 sm:space-y-3 relative">
-                    {rankData.countries.map((country) => {
-                      const lowerCountry = country.toLowerCase();
-                      const lowerQuery = searchQuery.toLowerCase();
-                      const matchIndex = lowerCountry.indexOf(lowerQuery);
-
-                      return (
-                        <motion.button
-                          key={`country-${rankData.rank}-${country}`}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => handleCountryClick(country)}
-                          className="w-full text-left px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg sm:rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-all duration-200 text-gray-700 font-medium flex items-center gap-2 sm:gap-3 group text-sm sm:text-base"
-                        >
-                          {matchIndex === -1 ? (
-                            country
-                          ) : (
-                            <>
-                              {country.slice(0, matchIndex)}
-                              <span className="text-indigo-600 underline">
-                                {country.slice(matchIndex, matchIndex + searchQuery.length)}
-                              </span>
-                              {country.slice(matchIndex + searchQuery.length)}
-                            </>
-                          )}
-                        </motion.button>
-                      );
-                    })}
+                    {rankData.countries.map((country) => (
+                      <motion.button
+                        key={`country-${rankData.rank}-${country}`}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleCountryClick(country)}
+                        className="w-full text-left px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg sm:rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-all duration-200 text-gray-700 font-medium flex items-center gap-2 sm:gap-3 group text-sm sm:text-base"
+                      >
+                        {country}
+                      </motion.button>
+                    ))}
                   </div>
                 </motion.article>
               ))
