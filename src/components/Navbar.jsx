@@ -1,109 +1,251 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+// src/components/Navbar.jsx
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import ProfileDropdown from './ProfileDropdown'; // Import the ProfileDropdown component
 
 const Navbar = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [peopleMenuOpen, setPeopleMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const navigate = useNavigate();
 
-  const handleLogoClick = (e) => {
-    e.preventDefault(); // Prevent default Link behavior
-    window.location.href = '/'; // Force page refresh and redirect to home
+  // Check authentication status whenever local storage changes
+  useEffect(() => {
+    const checkAuthStatus = () => {
+      const token = localStorage.getItem('token');
+      const role = localStorage.getItem('role');
+      
+      if (token) {
+        setIsLoggedIn(true);
+        setUserRole(role);
+      } else {
+        setIsLoggedIn(false);
+        setUserRole(null);
+      }
+    };
+
+    // Check on initial load
+    checkAuthStatus();
+    
+    // Listen for auth changes (useful for when ProfileDropdown logs out)
+    window.addEventListener('authChange', checkAuthStatus);
+    
+    return () => {
+      window.removeEventListener('authChange', checkAuthStatus);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+    setIsLoggedIn(false);
+    setUserRole(null);
+    navigate('/login');
+    setPeopleMenuOpen(false);
+    
+    // Dispatch an event to notify other components that auth status changed
+    window.dispatchEvent(new Event('authChange'));
+  };
+
+  const togglePeopleMenu = () => {
+    setPeopleMenuOpen(!peopleMenuOpen);
+  };
+
+  const closePeopleMenu = () => {
+    setPeopleMenuOpen(false);
+  };
+
+  const handleDashboardClick = (requiredRole, path) => {
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    
+    if (token && role === requiredRole) {
+      // User is logged in with the correct role, navigate to dashboard
+      navigate(path);
+    } else if (token && role !== requiredRole) {
+      // User is logged in but with the wrong role
+      navigate('/login', {
+        state: {
+          from: path,
+          requiredRole: requiredRole,
+          currentRole: role
+        }
+      });
+    } else {
+      // Not logged in
+      navigate('/login', {
+        state: {
+          from: path,
+          requiredRole: requiredRole
+        }
+      });
+    }
+    
+    setPeopleMenuOpen(false);
+    setMobileMenuOpen(false);
   };
 
   return (
-    <nav className="bg-gradient-to-r from-blue-900 to-indigo-900 shadow-xl w-full sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
-          {/* Logo */}
-          <Link
-            to="/"
-            onClick={handleLogoClick}
-            className="flex items-center space-x-2"
-            aria-label="Homepage"
-          >
-            <span className="text-2xl font-extrabold bg-gradient-to-r from-blue-200 to-teal-200 bg-clip-text text-transparent hover:from-teal-300 hover:to-blue-300 transition-all duration-500">
-              visafreetraveler.com
-            </span>
-          </Link>
-
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-10">
-            <NavLink to="/about" label="About" />
-            <NavLink to="/contact" label="Contact" />
+    <nav className="bg-white shadow-sm fixed w-full z-50 border-b border-gray-100">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          <div className="flex-shrink-0 flex items-center">
+            <Link to="/" className="text-xl font-bold text-gray-700 transition-all duration-300 hover:text-gray-900 cursor-pointer transform hover:scale-105">
+              Civils HQ
+            </Link>
           </div>
-
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden p-2 rounded-lg text-gray-200 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-            aria-label="Toggle navigation"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              {isOpen ? (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
+          
+          <div className="hidden md:flex md:items-center md:space-x-8">
+            <Link to="/" className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 hover:bg-gray-100">
+              Home
+            </Link>
+            <Link to="/about" className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 hover:bg-gray-100">
+              About
+            </Link>
+            
+            {/* People dropdown */}
+            <div className="relative">
+              <button 
+                onClick={togglePeopleMenu}
+                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 hover:bg-gray-100 flex items-center"
+              >
+                <span>People</span>
+                <svg 
+                  className={`w-4 h-4 ml-1 transition-transform ${peopleMenuOpen ? 'rotate-180' : ''}`} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24" 
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </button>
+              
+              {/* People dropdown menu */}
+              {peopleMenuOpen && (
+                <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 py-1 z-50">
+                  <button 
+                    onClick={() => handleDashboardClick('admin', '/admin/dashboard')}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Admin Dashboard
+                  </button>
+                  
+                  <button 
+                    onClick={() => handleDashboardClick('institution', '/institution/dashboard')}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Institution Dashboard
+                  </button>
+                  
+                  <button 
+                    onClick={() => handleDashboardClick('aspirant', '/aspirant/dashboard')}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Aspirant Dashboard
+                  </button>
+                </div>
               )}
-            </svg>
-          </button>
-        </div>
-
-        {/* Mobile Menu */}
-        <div className={`md:hidden ${isOpen ? 'block' : 'hidden'} pb-4`}>
-          <div className="px-2 pt-2 space-y-2 bg-white rounded-lg shadow-lg">
-            <MobileNavLink
-              to="/about"
-              label="About"
-              onClick={() => setIsOpen(false)}
-            />
-            <MobileNavLink
-              to="/contact"
-              label="Contact"
-              onClick={() => setIsOpen(false)}
-            />
+            </div>
+            
+            {/* Profile/Login section */}
+            {isLoggedIn ? (
+              <ProfileDropdown onLogout={handleLogout} />
+            ) : (
+              <Link to="/login" className="ml-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 transform hover:scale-105">
+                Login/Signup
+              </Link>
+            )}
+          </div>
+          
+          <div className="flex md:hidden items-center">
+            {/* Show Profile on mobile when logged in */}
+            {isLoggedIn ? (
+              <div className="mr-2">
+                <ProfileDropdown onLogout={handleLogout} />
+              </div>
+            ) : null}
+            
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-500"
+              aria-expanded="false"
+            >
+              <span className="sr-only">Open main menu</span>
+              {!mobileMenuOpen ? (
+                <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              ) : (
+                <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Mobile menu */}
+      <div className={`md:hidden ${mobileMenuOpen ? 'block' : 'hidden'}`}>
+        <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 shadow-inner bg-gray-50 animate-fadeIn">
+          <Link to="/" className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 transition-all duration-200">
+            Home
+          </Link>
+          <Link to="/about" className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 transition-all duration-200">
+            About
+          </Link>
+          
+          {/* Dashboard options for mobile */}
+          <div className="px-3 py-2 rounded-md text-base font-medium border-t border-gray-200 mt-2 pt-2">
+            <h3 className="text-gray-500 text-sm uppercase font-bold mb-2">People</h3>
+            
+            <button 
+              onClick={() => handleDashboardClick('admin', '/admin/dashboard')}
+              className="block w-full text-left py-2 text-base text-gray-700"
+            >
+              Admin Dashboard
+            </button>
+            
+            <button 
+              onClick={() => handleDashboardClick('institution', '/institution/dashboard')}
+              className="block w-full text-left py-2 text-base text-gray-700"
+            >
+              Institution Dashboard
+            </button>
+            
+            <button 
+              onClick={() => handleDashboardClick('aspirant', '/aspirant/dashboard')}
+              className="block w-full text-left py-2 text-base text-gray-700"
+            >
+              Aspirant Dashboard
+            </button>
+          </div>
+          
+          {/* Login/Signup button for mobile (only show if not logged in) */}
+          {!isLoggedIn && (
+            <div className="px-3 py-2 mt-2">
+              <Link 
+                to="/login"
+                className="w-full flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200"
+              >
+                Login/Signup
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Overlay to close menu when clicking outside */}
+      {peopleMenuOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-transparent" 
+          onClick={closePeopleMenu}
+        ></div>
+      )}
     </nav>
   );
 };
-
-// Reusable NavLink component for desktop
-const NavLink = ({ to, label }) => (
-  <Link
-    to={to}
-    className="relative text-gray-200 hover:text-white font-medium group transition-colors duration-300"
-    aria-label={`${label} page`}
-  >
-    {label}
-    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-300 transition-all group-hover:w-full"></span>
-  </Link>
-);
-
-// Mobile-specific NavLink component
-const MobileNavLink = ({ to, label, onClick }) => (
-  <Link
-    to={to}
-    onClick={onClick}
-    className="block px-4 py-3 text-gray-800 hover:bg-blue-50 rounded-md transition-colors duration-200 font-medium"
-    aria-label={`${label} page`}
-  >
-    {label}
-  </Link>
-);
 
 export default Navbar;
