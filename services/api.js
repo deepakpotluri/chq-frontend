@@ -1,20 +1,25 @@
 // services/api.js - Enhanced API service configuration
 import axios from 'axios';
 
-// Get environment variables with fallbacks
+// Get base API URL
 const getApiUrl = () => {
-  // Check if we're in a browser environment and have access to environment variables
   if (typeof window !== 'undefined') {
-    // For production builds, you might want to set this as a build-time variable
-    return window.REACT_APP_API_URL || 'http://localhost:5000';
+    // Try window environment variable first (useful for frontend-only apps)
+    return (
+      window.REACT_APP_API_URL || // Optional override
+      (window.location.hostname === 'localhost'
+        ? 'http://localhost:5000'
+        : 'https://chq-backend.vercel.app/')
+    );
   }
-  
-  // For development with Create React App
-  try {
-    return process.env.REACT_APP_API_URL || 'http://localhost:5000';
-  } catch (e) {
-    return 'http://localhost:5000';
-  }
+
+  // Fallback to Node environment variable or reasonable defaults
+  return (
+    process.env.REACT_APP_API_URL ||
+    (process.env.NODE_ENV === 'development'
+      ? 'http://localhost:5000'
+      : 'https://chq-backend.vercel.app/')
+  );
 };
 
 const isDevelopment = () => {
@@ -34,22 +39,21 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
-    // Log API calls in development
+
     if (isDevelopment()) {
       console.log(`API ${config.method?.toUpperCase()} ${config.url}`, {
         params: config.params,
         data: config.data
       });
     }
-    
+
     return config;
   },
   (error) => {
@@ -58,10 +62,9 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle common responses
+// Response interceptor
 api.interceptors.response.use(
   (response) => {
-    // Log successful responses in development
     if (isDevelopment()) {
       console.log(`API Response ${response.config.url}:`, response.data);
     }
@@ -69,28 +72,21 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('API Error:', error);
-    
-    // Handle 401 Unauthorized
+
     if (error.response?.status === 401) {
-      // Clear local storage and redirect to login
       localStorage.removeItem('token');
       localStorage.removeItem('role');
-      
-      // Dispatch custom event to update UI
       window.dispatchEvent(new Event('authChange'));
-      
-      // Redirect to login if not already there
+
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
       }
     }
-    
-    // Handle network errors
+
     if (!error.response) {
-      console.error('Network error - API might be down');
       error.message = 'Network error. Please check if the backend server is running.';
     }
-    
+
     return Promise.reject(error);
   }
 );
