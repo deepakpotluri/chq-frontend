@@ -1,7 +1,7 @@
-// src/components/Navbar.jsx
+// src/components/Navbar.jsx - Improved responsive version
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import ProfileDropdown from './ProfileDropdown'; // Import the ProfileDropdown component
+import ProfileDropdown from './ProfileDropdown';
 
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -10,7 +10,6 @@ const Navbar = () => {
   const [userRole, setUserRole] = useState(null);
   const navigate = useNavigate();
 
-  // Check authentication status whenever local storage changes
   useEffect(() => {
     const checkAuthStatus = () => {
       const token = localStorage.getItem('token');
@@ -25,10 +24,7 @@ const Navbar = () => {
       }
     };
 
-    // Check on initial load
     checkAuthStatus();
-    
-    // Listen for auth changes (useful for when ProfileDropdown logs out)
     window.addEventListener('authChange', checkAuthStatus);
     
     return () => {
@@ -43,8 +39,7 @@ const Navbar = () => {
     setUserRole(null);
     navigate('/login');
     setPeopleMenuOpen(false);
-    
-    // Dispatch an event to notify other components that auth status changed
+    setMobileMenuOpen(false);
     window.dispatchEvent(new Event('authChange'));
   };
 
@@ -61,10 +56,8 @@ const Navbar = () => {
     const role = localStorage.getItem('role');
     
     if (token && role === requiredRole) {
-      // User is logged in with the correct role, navigate to dashboard
       navigate(path);
     } else if (token && role !== requiredRole) {
-      // User is logged in but with the wrong role
       navigate('/login', {
         state: {
           from: path,
@@ -73,7 +66,6 @@ const Navbar = () => {
         }
       });
     } else {
-      // Not logged in
       navigate('/login', {
         state: {
           from: path,
@@ -91,12 +83,16 @@ const Navbar = () => {
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex-shrink-0 flex items-center">
-            <Link to="/" className="text-xl font-bold text-gray-700 transition-all duration-300 hover:text-gray-900 cursor-pointer transform hover:scale-105">
+            <Link 
+              to="/" 
+              className="text-lg sm:text-xl font-bold text-gray-700 transition-all duration-300 hover:text-gray-900 cursor-pointer transform hover:scale-105"
+            >
               Civils HQ
             </Link>
           </div>
           
-          <div className="hidden md:flex md:items-center md:space-x-8">
+          {/* Desktop Menu */}
+          <div className="hidden md:flex md:items-center md:space-x-6 lg:space-x-8">
             <Link to="/" className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 hover:bg-gray-100">
               Home
             </Link>
@@ -122,7 +118,6 @@ const Navbar = () => {
                 </svg>
               </button>
               
-              {/* People dropdown menu */}
               {peopleMenuOpen && (
                 <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 py-1 z-50">
                   <button 
@@ -153,19 +148,19 @@ const Navbar = () => {
             {isLoggedIn ? (
               <ProfileDropdown onLogout={handleLogout} />
             ) : (
-              <Link to="/login" className="ml-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 transform hover:scale-105">
+              <Link to="/login" className="ml-4 inline-flex items-center px-3 sm:px-4 py-2 border border-transparent rounded-md shadow-sm text-xs sm:text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 transform hover:scale-105">
                 Login/Signup
               </Link>
             )}
           </div>
           
+          {/* Mobile menu button */}
           <div className="flex md:hidden items-center">
-            {/* Show Profile on mobile when logged in */}
-            {isLoggedIn ? (
+            {isLoggedIn && (
               <div className="mr-2">
                 <ProfileDropdown onLogout={handleLogout} />
               </div>
-            ) : null}
+            )}
             
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -189,7 +184,7 @@ const Navbar = () => {
 
       {/* Mobile menu */}
       <div className={`md:hidden ${mobileMenuOpen ? 'block' : 'hidden'}`}>
-        <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 shadow-inner bg-gray-50 animate-fadeIn">
+        <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 shadow-inner bg-gray-50">
           <Link to="/" className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 transition-all duration-200">
             Home
           </Link>
@@ -223,7 +218,7 @@ const Navbar = () => {
             </button>
           </div>
           
-          {/* Login/Signup button for mobile (only show if not logged in) */}
+          {/* Login/Signup button for mobile */}
           {!isLoggedIn && (
             <div className="px-3 py-2 mt-2">
               <Link 

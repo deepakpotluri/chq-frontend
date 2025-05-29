@@ -1,6 +1,6 @@
-// src/App.jsx (Updated with Course Detail Page route)
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+// src/App.jsx - Updated with ScrollToTop functionality
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from '../src/components/Navbar';
 import HomePage from '../src/pages/HomePage';
 
@@ -16,6 +16,17 @@ import AdminDashboard from '../src/pages/AdminDashboard';
 // Course Pages
 import CoursesPage from '../src/pages/CoursePage';
 import CourseDetailPage from '../src/pages/CourseDetailPage';
+
+// ScrollToTop Component
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+};
 
 // Protected Route Component
 const ProtectedRoute = ({ element, allowedRole }) => {
@@ -42,6 +53,7 @@ const ProtectedRoute = ({ element, allowedRole }) => {
 const App = () => {
   return (
     <Router>
+      <ScrollToTop />
       <div className="App">
         <Navbar />
         {/* Added pt-16 class to create space for the fixed navbar */}

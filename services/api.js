@@ -1,39 +1,27 @@
-// services/api.js - Enhanced API service configuration
+// services/api.js - Fixed API service for Vercel deployment
 import axios from 'axios';
 
-// Get base API URL
+// Get base API URL - Fixed for Vercel deployment
 const getApiUrl = () => {
+  // For production (Vercel), ensure no trailing slash
+  const productionUrl = 'https://chq-backend.vercel.app';
+  const developmentUrl = 'http://localhost:5000';
+  
   if (typeof window !== 'undefined') {
-    // Try window environment variable first (useful for frontend-only apps)
-    return (
-      window.REACT_APP_API_URL || // Optional override
-      (window.location.hostname === 'localhost'
-        ? 'http://localhost:5000'
-        : 'https://chq-backend.vercel.app/')
-    );
+    return window.location.hostname === 'localhost' 
+      ? developmentUrl 
+      : productionUrl;
   }
-
-  // Fallback to Node environment variable or reasonable defaults
-  return (
-    process.env.REACT_APP_API_URL ||
-    (process.env.NODE_ENV === 'development'
-      ? 'http://localhost:5000'
-      : 'https://chq-backend.vercel.app/')
-  );
-};
-
-const isDevelopment = () => {
-  try {
-    return process.env.NODE_ENV === 'development';
-  } catch (e) {
-    return window.location.hostname === 'localhost';
-  }
+  
+  return process.env.NODE_ENV === 'development' 
+    ? developmentUrl 
+    : productionUrl;
 };
 
 // Create axios instance
 const api = axios.create({
   baseURL: getApiUrl(),
-  timeout: 10000,
+  timeout: 30000, // Increased timeout for Vercel cold starts
   headers: {
     'Content-Type': 'application/json',
   },
@@ -46,18 +34,9 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-
-    if (isDevelopment()) {
-      console.log(`API ${config.method?.toUpperCase()} ${config.url}`, {
-        params: config.params,
-        data: config.data
-      });
-    }
-
     return config;
   },
   (error) => {
-    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -65,14 +44,9 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
-    if (isDevelopment()) {
-      console.log(`API Response ${response.config.url}:`, response.data);
-    }
     return response;
   },
   (error) => {
-    console.error('API Error:', error);
-
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('role');
@@ -84,7 +58,7 @@ api.interceptors.response.use(
     }
 
     if (!error.response) {
-      error.message = 'Network error. Please check if the backend server is running.';
+      error.message = 'Network error. Please check your connection and try again.';
     }
 
     return Promise.reject(error);
