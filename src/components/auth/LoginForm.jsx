@@ -1,4 +1,4 @@
-// src/components/auth/LoginForm.jsx - Improved responsive version
+// src/components/auth/LoginForm.jsx - Complete with Verification Handling
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../../services/api';
@@ -54,6 +54,20 @@ const LoginForm = () => {
         throw new Error(response.data.message || 'Login failed');
       }
       
+      // Handle institution verification requirement
+      if (response.data.requiresVerification) {
+        setError('Your institution account is pending verification. Please wait for admin approval.');
+        setLoading(false);
+        return;
+      }
+      
+      // Handle deactivated accounts
+      if (response.data.isDeactivated) {
+        setError('Your account has been deactivated. Please contact support.');
+        setLoading(false);
+        return;
+      }
+      
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('role', response.data.role);
       
@@ -78,7 +92,13 @@ const LoginForm = () => {
       }
     } catch (err) {
       if (err.response) {
-        setError(err.response.data?.message || `Error: ${err.response.status}`);
+        if (err.response.status === 403 && err.response.data.requiresVerification) {
+          setError('Your institution account is pending verification. Please wait for admin approval.');
+        } else if (err.response.status === 403 && err.response.data.isDeactivated) {
+          setError('Your account has been deactivated. Please contact support.');
+        } else {
+          setError(err.response.data?.message || `Error: ${err.response.status}`);
+        }
       } else if (err.request) {
         setError('Unable to connect to server. Please try again.');
       } else {
@@ -105,7 +125,14 @@ const LoginForm = () => {
         </div>
       )}
       
-      {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{error}</div>}
+      {error && (
+        <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm flex items-start">
+          <svg className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>{error}</span>
+        </div>
+      )}
       
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
@@ -174,6 +201,13 @@ const LoginForm = () => {
           </a>
         </p>
       </div>
+      
+      {formData.role === 'institution' && (
+        <div className="mt-4 p-3 bg-yellow-50 rounded text-xs text-yellow-800">
+          <p className="font-medium mb-1">📢 Note for Institutions:</p>
+          <p>After signup, your account will need to be verified by our admin team before you can access the dashboard. This usually takes 24-48 hours.</p>
+        </div>
+      )}
     </div>
   );
 };

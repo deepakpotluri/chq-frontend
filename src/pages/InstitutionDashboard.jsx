@@ -12,6 +12,8 @@ const InstitutionDashboard = () => {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedCourse, setSelectedCourse] = useState(null);
+  const [showCourseModal, setShowCourseModal] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
   // Check authentication
   const token = localStorage.getItem('token');
@@ -34,6 +36,16 @@ const InstitutionDashboard = () => {
       const profileResponse = await api.get('/api/institution/profile');
       if (profileResponse.data.success) {
         setInstitutionData(profileResponse.data);
+        
+        // Check if institution is verified
+        if (!profileResponse.data.isVerified) {
+          setNotifications([{
+            id: 'not-verified',
+            type: 'warning',
+            message: 'Your institution is pending verification. Some features may be limited.',
+            permanent: true
+          }]);
+        }
       }
 
       // Fetch courses
@@ -61,28 +73,11 @@ const InstitutionDashboard = () => {
         });
       }
 
-      // Fetch enrollments - get actual enrollment data
+      // Fetch enrollments
       try {
         const enrollmentsResponse = await api.get('/api/institution/enrollments');
         if (enrollmentsResponse.data.success) {
           setEnrollments(enrollmentsResponse.data.enrollments || []);
-        } else {
-          // If no enrollments endpoint, extract from courses
-          const allEnrollments = [];
-          coursesResponse.data.data.forEach(course => {
-            if (course.enrollments && course.enrollments.length > 0) {
-              course.enrollments.forEach(enrollment => {
-                if (enrollment.paymentStatus === 'completed') {
-                  allEnrollments.push({
-                    ...enrollment,
-                    courseTitle: course.title,
-                    courseId: course._id
-                  });
-                }
-              });
-            }
-          });
-          setEnrollments(allEnrollments);
         }
       } catch (enrollmentsError) {
         console.error('Enrollments fetch failed:', enrollmentsError);
@@ -186,11 +181,12 @@ const InstitutionDashboard = () => {
 
   const CourseAnalyticsCard = ({ course }) => {
     const conversionRate = course.views > 0 ? ((course.currentEnrollments / course.views) * 100).toFixed(1) : 0;
+    const revenue = (course.price || 0) * (course.currentEnrollments || 0);
     
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
         <div className="flex justify-between items-start mb-4">
-          <div>
+          <div className="flex-1">
             <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">{course.title}</h3>
             <div className="flex items-center gap-2 mt-2">
               <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -206,6 +202,11 @@ const InstitutionDashboard = () => {
               }`}>
                 {course.isPublished ? 'Published' : 'Draft'}
               </span>
+              {course.status === 'suspended' && (
+                <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">
+                  ⚠️ Suspended by Admin
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -236,7 +237,7 @@ const InstitutionDashboard = () => {
           </div>
           <div>
             <span className="text-sm text-gray-600">Revenue: </span>
-            <span className="font-bold text-green-600">₹{((course.price || 0) * (course.currentEnrollments || 0)).toLocaleString()}</span>
+            <span className="font-bold text-green-600">₹{revenue.toLocaleString()}</span>
           </div>
         </div>
 
@@ -247,30 +248,45 @@ const InstitutionDashboard = () => {
             rel="noopener noreferrer"
             className="flex-1 bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm font-medium hover:bg-gray-200 transition text-center"
           >
-            View Details
+            View Public Page
           </a>
           
-          <select
-            onChange={(e) => promoteCourse(course._id, e.target.value)}
-            value={course.promotionLevel || 'none'}
-            className="bg-blue-50 text-blue-700 px-3 py-2 rounded text-sm font-medium cursor-pointer hover:bg-blue-100 transition"
-          >
-            <option value="none">No Promotion</option>
-            <option value="basic">Basic (₹500/mo)</option>
-            <option value="premium">Premium (₹1500/mo)</option>
-            <option value="featured">Featured (₹3000/mo)</option>
-          </select>
-          
           <button
-            onClick={() => toggleCoursePublication(course._id, course.isPublished)}
-            className={`px-3 py-2 rounded text-sm font-medium transition ${
-              course.isPublished 
-                ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                : 'bg-green-100 text-green-700 hover:bg-green-200'
-            }`}
+            onClick={() => {
+              setSelectedCourse(course);
+              setShowCourseModal(true);
+            }}
+            className="flex-1 bg-blue-100 text-blue-700 px-3 py-2 rounded text-sm font-medium hover:bg-blue-200 transition text-center"
           >
-            {course.isPublished ? 'Unpublish' : 'Publish'}
+            Analytics
           </button>
+          
+          {institutionData?.isVerified && course.status !== 'suspended' && (
+            <select
+              onChange={(e) => promoteCourse(course._id, e.target.value)}
+              value={course.promotionLevel || 'none'}
+              className="bg-yellow-50 text-yellow-700 px-3 py-2 rounded text-sm font-medium cursor-pointer hover:bg-yellow-100 transition"
+              disabled={!course.isPublished}
+            >
+              <option value="none">No Promotion</option>
+              <option value="basic">Basic (₹500/mo)</option>
+              <option value="premium">Premium (₹1500/mo)</option>
+              <option value="featured">Featured (₹3000/mo)</option>
+            </select>
+          )}
+          
+          {course.status !== 'suspended' && (
+            <button
+              onClick={() => toggleCoursePublication(course._id, course.isPublished)}
+              className={`px-3 py-2 rounded text-sm font-medium transition ${
+                course.isPublished 
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+              }`}
+            >
+              {course.isPublished ? 'Unpublish' : 'Publish'}
+            </button>
+          )}
 
           <button
             onClick={() => deleteCourse(course._id)}
@@ -280,6 +296,12 @@ const InstitutionDashboard = () => {
             🗑️
           </button>
         </div>
+        
+        {course.adminAction && course.adminAction.reason && (
+          <div className="mt-3 p-3 bg-yellow-50 rounded text-xs text-yellow-800">
+            <span className="font-medium">Admin Note:</span> {course.adminAction.reason}
+          </div>
+        )}
       </div>
     );
   };
@@ -295,6 +317,29 @@ const InstitutionDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 pt-20 pb-10">
+        {/* Notifications */}
+        {notifications.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {notifications.map(notif => (
+              <div key={notif.id} className={`p-3 rounded-lg flex justify-between items-center ${
+                notif.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                notif.type === 'info' ? 'bg-blue-100 text-blue-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                <span>{notif.message}</span>
+                {!notif.permanent && (
+                  <button
+                    onClick={() => setNotifications(notifications.filter(n => n.id !== notif.id))}
+                    className="text-sm font-medium"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        
         <div className="bg-white rounded-lg shadow-sm">
           {/* Header */}
           <div className="border-b border-gray-200 p-6">
@@ -304,7 +349,7 @@ const InstitutionDashboard = () => {
                 {institutionData && (
                   <div className="mt-2">
                     <h2 className="text-xl font-semibold text-gray-800">{institutionData.institutionName || institutionData.name}</h2>
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
                       <span>{institutionData.email}</span>
                       <span className="capitalize">{institutionData.institutionType || 'Institution'}</span>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -317,6 +362,25 @@ const InstitutionDashboard = () => {
                     </div>
                   </div>
                 )}
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => fetchDashboardData()}
+                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition duration-200"
+                >
+                  🔄 Refresh
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('role');
+                    window.location.href = '/login';
+                  }}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition duration-200"
+                >
+                  Logout
+                </button>
               </div>
             </div>
           </div>
@@ -346,7 +410,8 @@ const InstitutionDashboard = () => {
                 { id: 'analytics', label: 'Analytics', icon: '📈' },
                 { id: 'enrollments', label: 'Enrollments', icon: '👥', count: enrollments.length },
                 { id: 'reviews', label: 'Reviews', icon: '⭐', count: reviews.length },
-                { id: 'earnings', label: 'Earnings', icon: '💰' }
+                { id: 'earnings', label: 'Earnings', icon: '💰' },
+                { id: 'settings', label: 'Settings', icon: '⚙️' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -357,11 +422,14 @@ const InstitutionDashboard = () => {
                       : 'text-gray-600 border-transparent hover:text-gray-900'
                   }`}
                 >
-                  {tab.icon} {tab.label} {tab.count !== undefined && (
-                    <span className="ml-1 bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs">
-                      {tab.count}
-                    </span>
-                  )}
+                  <span className="flex items-center">
+                    {tab.icon} {tab.label} 
+                    {tab.count !== undefined && (
+                      <span className="ml-1 bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs">
+                        {tab.count}
+                      </span>
+                    )}
+                  </span>
                 </button>
               ))}
             </div>
@@ -434,10 +502,13 @@ const InstitutionDashboard = () => {
                     <button
                       onClick={() => setActiveTab('addCourse')}
                       className="p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow text-center group"
+                      disabled={!institutionData?.isVerified}
                     >
                       <div className="text-3xl mb-3 group-hover:scale-110 transition-transform">➕</div>
                       <h3 className="font-medium text-gray-900">Add New Course</h3>
-                      <p className="text-sm text-gray-600">Create and publish a new course</p>
+                      <p className="text-sm text-gray-600">
+                        {institutionData?.isVerified ? 'Create and publish a new course' : 'Available after verification'}
+                      </p>
                     </button>
 
                     <button
@@ -459,6 +530,57 @@ const InstitutionDashboard = () => {
                     </button>
                   </div>
                 </div>
+                
+                {/* Recent Activity */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white border rounded-lg p-6">
+                    <h3 className="text-lg font-semibold mb-4">Recent Enrollments</h3>
+                    {enrollments.length > 0 ? (
+                      <div className="space-y-3">
+                        {enrollments.slice(0, 5).map((enrollment, idx) => (
+                          <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                            <div>
+                              <p className="font-medium">{enrollment.student?.name || 'Student'}</p>
+                              <p className="text-sm text-gray-600">{enrollment.courseTitle}</p>
+                            </div>
+                            <span className="text-sm text-gray-500">
+                              {new Date(enrollment.enrolledAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-600 text-center py-4">No recent enrollments</p>
+                    )}
+                  </div>
+                  
+                  <div className="bg-white border rounded-lg p-6">
+                    <h3 className="text-lg font-semibold mb-4">Recent Reviews</h3>
+                    {reviews.length > 0 ? (
+                      <div className="space-y-3">
+                        {reviews.slice(0, 5).map((review, idx) => (
+                          <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                            <div className="flex-1">
+                              <p className="font-medium line-clamp-1">{review.course.title}</p>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-yellow-500">{review.courseRating}⭐</span>
+                                <span className={`px-2 py-0.5 text-xs rounded-full ${
+                                  review.verificationStatus === 'approved' ? 'bg-green-100 text-green-800' :
+                                  review.verificationStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {review.verificationStatus}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-600 text-center py-4">No reviews yet</p>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -470,19 +592,32 @@ const InstitutionDashboard = () => {
                   <button 
                     onClick={() => setActiveTab('addCourse')}
                     className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+                    disabled={!institutionData?.isVerified}
                   >
                     + Add New Course
                   </button>
                 </div>
 
+                {!institutionData?.isVerified && (
+                  <div className="bg-yellow-50 p-4 rounded-lg mb-6 text-yellow-800">
+                    <p className="font-medium">⚠️ Institution Not Verified</p>
+                    <p className="text-sm mt-1">You can create courses, but they cannot be published until your institution is verified by an admin.</p>
+                  </div>
+                )}
+
                 {courses.length === 0 ? (
                   <div className="text-center py-12 bg-gray-50 rounded-lg">
                     <div className="text-4xl mb-4">📚</div>
                     <h3 className="text-lg font-medium text-gray-700 mb-2">No courses created yet</h3>
-                    <p className="text-gray-600 mb-4">Create your first course to start attracting students</p>
+                    <p className="text-gray-600 mb-4">
+                      {institutionData?.isVerified 
+                        ? 'Create your first course to start attracting students' 
+                        : 'Create courses now, publish after verification'}
+                    </p>
                     <button 
                       onClick={() => setActiveTab('addCourse')}
                       className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+                      disabled={!institutionData?.isVerified}
                     >
                       Create First Course
                     </button>
@@ -509,6 +644,7 @@ const InstitutionDashboard = () => {
                   fetchDashboardData();
                 }}
                 setError={setError}
+                isVerified={institutionData?.isVerified}
               />
             )}
 
@@ -541,6 +677,9 @@ const InstitutionDashboard = () => {
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Amount
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
                           </th>
                         </tr>
                       </thead>
@@ -577,6 +716,11 @@ const InstitutionDashboard = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               ₹{(enrollment.amount || 0).toLocaleString()}
                             </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <button className="text-blue-600 hover:text-blue-900">
+                                View Details
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -586,10 +730,66 @@ const InstitutionDashboard = () => {
               </div>
             )}
 
-            {/* Other tabs remain the same */}
+            {/* Analytics Tab */}
             {activeTab === 'analytics' && analytics && (
               <div className="space-y-8">
                 <h2 className="text-xl font-semibold text-gray-900">Detailed Analytics</h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-white border rounded-lg p-6">
+                    <h3 className="font-semibold mb-4">Performance Overview</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Total Views</span>
+                        <span className="font-medium">{analytics.totalViews}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Total Leads</span>
+                        <span className="font-medium">{analytics.totalLeads}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Conversion Rate</span>
+                        <span className="font-medium">{analytics.conversionRate}%</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white border rounded-lg p-6">
+                    <h3 className="font-semibold mb-4">Course Performance</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Published Courses</span>
+                        <span className="font-medium">{courses.filter(c => c.isPublished).length}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Draft Courses</span>
+                        <span className="font-medium">{courses.filter(c => !c.isPublished).length}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Avg Rating</span>
+                        <span className="font-medium">{analytics.averageRating}⭐</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white border rounded-lg p-6">
+                    <h3 className="font-semibold mb-4">Growth Metrics</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Monthly Growth</span>
+                        <span className="font-medium text-green-600">+{analytics.monthlyGrowth}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Active Students</span>
+                        <span className="font-medium">{analytics.totalEnrollments}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Total Reviews</span>
+                        <span className="font-medium">{reviews.length}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 
                 <div className="bg-gray-50 p-8 rounded-lg text-center">
                   <h3 className="text-lg font-medium mb-4">Monthly Performance Trends</h3>
@@ -600,6 +800,7 @@ const InstitutionDashboard = () => {
               </div>
             )}
 
+            {/* Reviews Tab */}
             {activeTab === 'reviews' && (
               <div>
                 <h2 className="text-xl font-semibold mb-6 text-gray-900">Student Reviews</h2>
@@ -613,7 +814,39 @@ const InstitutionDashboard = () => {
                   <div className="space-y-6">
                     {reviews.map((review) => (
                       <div key={review._id} className="bg-white border rounded-lg p-6">
-                        <p>Review details would be displayed here</p>
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="font-semibold">{review.course.title}</h3>
+                            <p className="text-sm text-gray-600">By: {review.user?.name || 'Anonymous'}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="flex items-center gap-2 text-sm">
+                              <span>Course: {review.courseRating}⭐</span>
+                              <span>Institute: {review.instituteRating}⭐</span>
+                              <span>Faculty: {review.facultyRating}⭐</span>
+                            </div>
+                            <span className={`inline-block mt-1 px-2 py-1 text-xs rounded-full ${
+                              review.verificationStatus === 'approved' ? 'bg-green-100 text-green-800' :
+                              review.verificationStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {review.verificationStatus}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <p className="text-gray-700 mb-4">{review.reviewText}</p>
+                        
+                        {review.rejectionReason && (
+                          <div className="bg-red-50 p-3 rounded text-sm text-red-800 mb-4">
+                            <span className="font-medium">Admin Feedback:</span> {review.rejectionReason}
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center justify-between text-sm text-gray-600">
+                          <span>{new Date(review.createdAt).toLocaleDateString()}</span>
+                          <span>👍 {review.helpfulVotes || 0} found helpful</span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -621,6 +854,7 @@ const InstitutionDashboard = () => {
               </div>
             )}
 
+            {/* Earnings Tab */}
             {activeTab === 'earnings' && earnings && (
               <div className="space-y-8">
                 <h2 className="text-xl font-semibold text-gray-900">Earnings Overview</h2>
@@ -650,17 +884,265 @@ const InstitutionDashboard = () => {
                     <p className="text-xs text-purple-700">Received</p>
                   </div>
                 </div>
+                
+                <div className="bg-white border rounded-lg p-6">
+                  <h3 className="font-semibold mb-4">Monthly Breakdown</h3>
+                  <div className="space-y-3">
+                    {earnings.monthlyBreakdown.map((month, idx) => (
+                      <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                        <span className="font-medium">{month.month}</span>
+                        <span className="font-bold">₹{month.earnings.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Settings Tab */}
+            {activeTab === 'settings' && (
+              <div className="space-y-8">
+                <h2 className="text-xl font-semibold text-gray-900">Institution Settings</h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="bg-gray-50 p-6 rounded-lg">
+                    <h3 className="text-lg font-semibold mb-4">Profile Information</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Institution Name
+                        </label>
+                        <input
+                          type="text"
+                          defaultValue={institutionData?.institutionName}
+                          className="w-full px-3 py-2 border rounded-lg"
+                          disabled={!institutionData?.isVerified}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Contact Email
+                        </label>
+                        <input
+                          type="email"
+                          defaultValue={institutionData?.email}
+                          className="w-full px-3 py-2 border rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Institution Type
+                        </label>
+                        <select
+                          defaultValue={institutionData?.institutionType}
+                          className="w-full px-3 py-2 border rounded-lg"
+                          disabled={!institutionData?.isVerified}
+                        >
+                          <option value="coaching">Coaching Institute</option>
+                          <option value="university">University</option>
+                          <option value="college">College</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-50 p-6 rounded-lg">
+                    <h3 className="text-lg font-semibold mb-4">Notification Preferences</h3>
+                    <div className="space-y-3">
+                      <label className="flex items-center">
+                        <input type="checkbox" defaultChecked className="mr-2" />
+                        <span className="text-sm">Email notifications for new enrollments</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input type="checkbox" defaultChecked className="mr-2" />
+                        <span className="text-sm">Email notifications for new reviews</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input type="checkbox" defaultChecked className="mr-2" />
+                        <span className="text-sm">Weekly performance summary</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input type="checkbox" className="mr-2" />
+                        <span className="text-sm">Marketing tips and updates</span>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-50 p-6 rounded-lg">
+                    <h3 className="text-lg font-semibold mb-4">Payment Settings</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Bank Account Number
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter account number"
+                          className="w-full px-3 py-2 border rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          IFSC Code
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter IFSC code"
+                          className="w-full px-3 py-2 border rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          PAN Number
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter PAN number"
+                          className="w-full px-3 py-2 border rounded-lg"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-50 p-6 rounded-lg">
+                    <h3 className="text-lg font-semibold mb-4">Security</h3>
+                    <div className="space-y-4">
+                      <button className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                        Change Password
+                      </button>
+                      <button className="w-full bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition">
+                        Enable Two-Factor Authentication
+                      </button>
+                      <div className="pt-4 border-t">
+                        <p className="text-sm text-gray-600 mb-2">Danger Zone</p>
+                        <button className="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
+                          Delete Account
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end">
+                  <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+                    Save Settings
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
+        
+        {/* Course Analytics Modal */}
+        {showCourseModal && selectedCourse && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-6">
+                  <h2 className="text-2xl font-bold">Course Analytics: {selectedCourse.title}</h2>
+                  <button
+                    onClick={() => setShowCourseModal(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-blue-50 p-4 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-blue-900">{selectedCourse.views || 0}</p>
+                      <p className="text-sm text-blue-700">Total Views</p>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-purple-900">{selectedCourse.shortlisted || 0}</p>
+                      <p className="text-sm text-purple-700">Shortlisted</p>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-green-900">{selectedCourse.currentEnrollments || 0}</p>
+                      <p className="text-sm text-green-700">Enrollments</p>
+                    </div>
+                    <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-yellow-900">
+                        ₹{((selectedCourse.price || 0) * (selectedCourse.currentEnrollments || 0)).toLocaleString()}
+                      </p>
+                      <p className="text-sm text-yellow-700">Revenue</p>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3">Performance Metrics</h3>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Conversion Rate</span>
+                          <span className="font-medium">
+                            {selectedCourse.views > 0 
+                              ? ((selectedCourse.currentEnrollments / selectedCourse.views) * 100).toFixed(1) 
+                              : 0}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Average Rating</span>
+                          <span className="font-medium">{selectedCourse.averageRating?.overall?.toFixed(1) || '0.0'}⭐</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Total Reviews</span>
+                          <span className="font-medium">{selectedCourse.totalReviews || 0}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Course Status</span>
+                          <span className={`font-medium ${
+                            selectedCourse.isPublished ? 'text-green-600' : 'text-gray-600'
+                          }`}>
+                            {selectedCourse.isPublished ? 'Published' : 'Draft'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3">Recent Activity</h3>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-600">
+                        This section would show recent enrollments, reviews, and other activities related to this course.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end gap-3">
+                    <a
+                      href={`/courses/${selectedCourse._id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+                    >
+                      View Public Page
+                    </a>
+                    <button
+                      onClick={() => {
+                        setActiveTab('courses');
+                        setShowCourseModal(false);
+                      }}
+                      className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 // Course Form Component
-const CourseForm = ({ mode, course, onCancel, onSuccess, setError }) => {
+const CourseForm = ({ mode, course, onCancel, onSuccess, setError, isVerified }) => {
   const [formData, setFormData] = useState({
     title: course?.title || '',
     description: course?.description || '',
@@ -844,7 +1326,7 @@ const CourseForm = ({ mode, course, onCancel, onSuccess, setError }) => {
       courseData.append('endDate', formData.endDate);
       courseData.append('maxStudents', formData.maxStudents);
       courseData.append('deliveryType', formData.deliveryType);
-      courseData.append('isPublished', formData.isPublished);
+      courseData.append('isPublished', isVerified ? formData.isPublished : false);
       courseData.append('tags', JSON.stringify(tags));
       courseData.append('faculty', JSON.stringify(formData.faculty));
       
@@ -887,6 +1369,13 @@ const CourseForm = ({ mode, course, onCancel, onSuccess, setError }) => {
       <h2 className="text-xl font-semibold mb-6 text-gray-900">
         {mode === 'add' ? 'Add New Course' : 'Edit Course'}
       </h2>
+      
+      {!isVerified && (
+        <div className="bg-yellow-50 p-4 rounded-lg mb-6 text-yellow-800">
+          <p className="font-medium">⚠️ Institution Not Verified</p>
+          <p className="text-sm mt-1">You can create courses, but they cannot be published until your institution is verified.</p>
+        </div>
+      )}
       
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Information */}
@@ -1299,19 +1788,21 @@ const CourseForm = ({ mode, course, onCancel, onSuccess, setError }) => {
         </div>
 
         {/* Publication */}
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            name="isPublished"
-            id="isPublished"
-            checked={formData.isPublished}
-            onChange={handleChange}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-          />
-          <label htmlFor="isPublished" className="ml-2 block text-sm text-gray-700">
-            Publish this course (make it visible to students)
-          </label>
-        </div>
+        {isVerified && (
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              name="isPublished"
+              id="isPublished"
+              checked={formData.isPublished}
+              onChange={handleChange}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="isPublished" className="ml-2 block text-sm text-gray-700">
+              Publish this course (make it visible to students)
+            </label>
+          </div>
+        )}
         
         {/* Submit Buttons */}
         <div className="flex justify-end space-x-3 pt-4 border-t">

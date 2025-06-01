@@ -1,4 +1,4 @@
-// src/components/auth/SignupForm.jsx (Updated)
+// src/components/auth/SignupForm.jsx - Complete with Verification Notice
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../../services/api';
@@ -16,10 +16,11 @@ const SignupForm = () => {
   
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showVerificationNotice, setShowVerificationNotice] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Check if there's any redirect information in the state (passed from Navbar or login page)
+  // Check if there's any redirect information in the state
   const redirectPath = location.state?.from || '/';
   const requiredRole = location.state?.requiredRole;
   
@@ -41,6 +42,18 @@ const SignupForm = () => {
     
     try {
       const response = await api.post('/api/auth/signup', formData);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Signup failed');
+      }
+      
+      // Handle institution verification requirement
+      if (response.data.requiresVerification) {
+        setShowVerificationNotice(true);
+        setLoading(false);
+        return;
+      }
+      
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('role', response.data.role);
       
@@ -52,6 +65,8 @@ const SignupForm = () => {
         setLoading(false);
         return;
       }
+      
+      window.dispatchEvent(new Event('authChange'));
       
       // Redirect based on the path we came from or role
       if (redirectPath !== '/') {
@@ -77,6 +92,50 @@ const SignupForm = () => {
     }
   };
 
+  // Verification Notice Modal
+  if (showVerificationNotice) {
+    return (
+      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md mx-auto">
+        <div className="text-center">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+            <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          
+          <h2 className="text-2xl font-bold mb-4 text-gray-900">Registration Successful!</h2>
+          
+          <div className="bg-yellow-50 p-4 rounded-lg mb-6">
+            <p className="text-yellow-800 mb-2">
+              <strong>Important:</strong> Your institution account has been created successfully.
+            </p>
+            <p className="text-yellow-700 text-sm">
+              However, it requires verification by our admin team before you can access the dashboard. 
+              You will receive an email notification once your account is verified.
+            </p>
+          </div>
+          
+          <div className="text-left bg-gray-50 p-4 rounded mb-6">
+            <p className="font-semibold text-gray-700 mb-2">What happens next?</p>
+            <ul className="text-sm text-gray-600 space-y-1">
+              <li>• Our team will review your institution details</li>
+              <li>• Verification usually takes 24-48 hours</li>
+              <li>• You'll receive an email once approved</li>
+              <li>• After approval, you can login and access all features</li>
+            </ul>
+          </div>
+          
+          <button
+            onClick={() => navigate('/login')}
+            className="w-full bg-gray-700 text-white py-2 px-4 rounded-md hover:bg-gray-800 transition duration-200"
+          >
+            Go to Login Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md mx-auto">
       <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Sign up for Civils HQ</h2>
@@ -97,6 +156,7 @@ const SignupForm = () => {
             value={formData.role}
             onChange={handleChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
+            disabled={requiredRole ? true : false}
           >
             <option value="aspirant">Aspirant</option>
             <option value="institution">Institution</option>
@@ -104,7 +164,6 @@ const SignupForm = () => {
           </select>
         </div>
         
-        {/* Rest of the form remains the same */}
         {formData.role === 'aspirant' && (
           <div className="mb-4">
             <label className="block text-gray-700 text-sm font-medium mb-2">Full Name</label>
@@ -161,6 +220,11 @@ const SignupForm = () => {
                 required
               />
             </div>
+            
+            <div className="p-3 bg-yellow-50 rounded mb-4 text-xs text-yellow-800">
+              <p className="font-medium mb-1">📢 Important Note:</p>
+              <p>Institution accounts require admin verification before access is granted. This process typically takes 24-48 hours.</p>
+            </div>
           </>
         )}
         
@@ -212,15 +276,17 @@ const SignupForm = () => {
             onChange={handleChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
             required
+            minLength={6}
           />
+          <p className="text-xs text-gray-500 mt-1">Must be at least 6 characters</p>
         </div>
         
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-gray-700 text-white py-2 px-4 rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 transition duration-200"
+          className="w-full bg-gray-700 text-white py-2 px-4 rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Signing up...' : 'Sign Up'}
+          {loading ? 'Creating Account...' : 'Sign Up'}
         </button>
       </form>
       
