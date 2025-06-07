@@ -1,35 +1,35 @@
-// services/api.js - Fixed API service for Vercel deployment
+// src/services/api.js
 import axios from 'axios';
 
-// Get base API URL - Fixed for Vercel deployment
+// Safely access environment variables with fallbacks
 const getApiUrl = () => {
-  // Default URLs - no trailing slash
-  const productionUrl = 'https://chq-backend.vercel.app';
-  const developmentUrl = 'http://localhost:5000';
-  
-  // Check if running in browser
-  if (typeof window !== 'undefined') {
-    // In development (localhost)
-    if (window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1') {
-      return developmentUrl;
-    }
+  // Try to get from environment variable first
+  if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
   }
   
-  // In production or default
-  return productionUrl;
+  // Fallback based on hostname
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:5000';
+  }
+  
+  // Production fallback
+  return 'https://chq-backend.vercel.app';
 };
 
-// Create axios instance
+// Create axios instance with default config
 const api = axios.create({
   baseURL: getApiUrl(),
-  timeout: 30000, // Increased timeout for Vercel cold starts
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: false,
 });
 
-// Request interceptor
+// Log the API URL being used (for debugging)
+console.log('API Base URL:', api.defaults.baseURL);
+
+// Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -37,10 +37,9 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Log requests in development
-    if (window.location.hostname === 'localhost') {
-      console.log('API Request:', config.method?.toUpperCase(), config.url);
-    }
+    // Log the full request URL for debugging
+    const fullUrl = config.baseURL + config.url;
+    console.log('API Request:', config.method.toUpperCase(), fullUrl);
     
     return config;
   },
@@ -50,75 +49,40 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor
+// Response interceptor for error handling
 api.interceptors.response.use(
   (response) => {
-    // Log successful responses in development
-    if (window.location.hostname === 'localhost') {
-      console.log('API Response:', response.config.method?.toUpperCase(), response.config.url, response.status);
-    }
-    
     return response;
   },
   (error) => {
-    // Log errors
-    console.error('API Error:', error.response?.status, error.response?.data || error.message);
+    // Log detailed error information
+    if (error.response) {
+      // Server responded with error
+      console.error('API Error Response:', {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+    } else if (error.request) {
+      // Request made but no response
+      console.error('API No Response:', error.request);
+    } else {
+      // Error in request setup
+      console.error('API Request Setup Error:', error.message);
+    }
     
-    // Handle 401 Unauthorized
+    // Handle specific error cases
     if (error.response?.status === 401) {
+      // Unauthorized - clear token and redirect to login
       localStorage.removeItem('token');
       localStorage.removeItem('role');
-      window.dispatchEvent(new Event('authChange'));
-
-      if (!window.location.pathname.includes('/login')) {
+      if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
     }
-
-    // Handle network errors
-    if (!error.response) {
-      error.message = 'Network error. Please check your connection and try again.';
-    }
-
-    // Handle 500 errors
-    if (error.response?.status >= 500) {
-      error.message = 'Server error. Please try again later.';
-    }
-
-    // Handle 403 Forbidden
-    if (error.response?.status === 403) {
-      error.message = error.response.data?.message || 'You do not have permission to perform this action.';
-    }
-
-    // Handle 404 Not Found
-    if (error.response?.status === 404) {
-      error.message = error.response.data?.message || 'The requested resource was not found.';
-    }
-
+    
     return Promise.reject(error);
   }
 );
-
-// Helper function to get the current API URL (useful for debugging)
-api.getBaseURL = () => api.defaults.baseURL;
-
-// Helper function to check if API is reachable
-api.checkConnection = async () => {
-  try {
-    const response = await api.get('/');
-    return { 
-      connected: true, 
-      message: response.data?.message || 'Connected',
-      baseURL: api.defaults.baseURL 
-    };
-  } catch (error) {
-    return { 
-      connected: false, 
-      message: error.message,
-      baseURL: api.defaults.baseURL,
-      error: error.response?.data || error.message
-    };
-  }
-};
 
 export default api;
