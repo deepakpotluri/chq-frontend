@@ -3,19 +3,25 @@ import axios from 'axios';
 
 // Get base API URL - Fixed for Vercel deployment
 const getApiUrl = () => {
-  // For production (Vercel), ensure no trailing slash
-  const productionUrl = 'https://chq-backend.vercel.app';
-  const developmentUrl = 'http://localhost:5000';
-  
+  // Check if we're in production (Vercel) or development
   if (typeof window !== 'undefined') {
-    return window.location.hostname === 'localhost' 
-      ? developmentUrl 
-      : productionUrl;
+    // Client-side check
+    const hostname = window.location.hostname;
+    
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:5000';
+    } else if (hostname === 'chq-frontend.vercel.app') {
+      return 'https://chq-backend.vercel.app';
+    } else {
+      // For any other production deployment
+      return 'https://chq-backend.vercel.app';
+    }
   }
   
+  // Server-side or fallback
   return process.env.NODE_ENV === 'development' 
-    ? developmentUrl 
-    : productionUrl;
+    ? 'http://localhost:5000' 
+    : 'https://chq-backend.vercel.app';
 };
 
 // Create axios instance
@@ -25,6 +31,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: false // Important for CORS
 });
 
 // Request interceptor
@@ -34,6 +41,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Log the request URL in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('API Request:', config.method?.toUpperCase(), config.url);
+    }
+    
     return config;
   },
   (error) => {
@@ -47,6 +60,11 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Enhanced error logging
+    if (process.env.NODE_ENV === 'development') {
+      console.error('API Error:', error.response?.status, error.response?.data || error.message);
+    }
+    
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('role');
@@ -64,5 +82,10 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Export the API URL for debugging
+export const API_URL = getApiUrl();
+
+console.log('API configured for:', API_URL);
 
 export default api;
