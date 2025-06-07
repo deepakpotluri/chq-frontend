@@ -3,25 +3,21 @@ import axios from 'axios';
 
 // Get base API URL - Fixed for Vercel deployment
 const getApiUrl = () => {
-  // Check if we're in production (Vercel) or development
+  // Default URLs - no trailing slash
+  const productionUrl = 'https://chq-backend.vercel.app';
+  const developmentUrl = 'http://localhost:5000';
+  
+  // Check if running in browser
   if (typeof window !== 'undefined') {
-    // Client-side check
-    const hostname = window.location.hostname;
-    
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:5000';
-    } else if (hostname === 'chq-frontend.vercel.app') {
-      return 'https://chq-backend.vercel.app';
-    } else {
-      // For any other production deployment
-      return 'https://chq-backend.vercel.app';
+    // In development (localhost)
+    if (window.location.hostname === 'localhost' || 
+        window.location.hostname === '127.0.0.1') {
+      return developmentUrl;
     }
   }
   
-  // Server-side or fallback
-  return process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:5000' 
-    : 'https://chq-backend.vercel.app';
+  // In production or default
+  return productionUrl;
 };
 
 // Create axios instance
@@ -31,7 +27,6 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: false // Important for CORS
 });
 
 // Request interceptor
@@ -42,14 +37,15 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Log the request URL in development
-    if (process.env.NODE_ENV === 'development') {
+    // Log requests in development
+    if (window.location.hostname === 'localhost') {
       console.log('API Request:', config.method?.toUpperCase(), config.url);
     }
     
     return config;
   },
   (error) => {
+    console.error('Request Error:', error);
     return Promise.reject(error);
   }
 );
@@ -57,14 +53,18 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
+    // Log successful responses in development
+    if (window.location.hostname === 'localhost') {
+      console.log('API Response:', response.config.method?.toUpperCase(), response.config.url, response.status);
+    }
+    
     return response;
   },
   (error) => {
-    // Enhanced error logging
-    if (process.env.NODE_ENV === 'development') {
-      console.error('API Error:', error.response?.status, error.response?.data || error.message);
-    }
+    // Log errors
+    console.error('API Error:', error.response?.status, error.response?.data || error.message);
     
+    // Handle 401 Unauthorized
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('role');
@@ -75,17 +75,50 @@ api.interceptors.response.use(
       }
     }
 
+    // Handle network errors
     if (!error.response) {
       error.message = 'Network error. Please check your connection and try again.';
+    }
+
+    // Handle 500 errors
+    if (error.response?.status >= 500) {
+      error.message = 'Server error. Please try again later.';
+    }
+
+    // Handle 403 Forbidden
+    if (error.response?.status === 403) {
+      error.message = error.response.data?.message || 'You do not have permission to perform this action.';
+    }
+
+    // Handle 404 Not Found
+    if (error.response?.status === 404) {
+      error.message = error.response.data?.message || 'The requested resource was not found.';
     }
 
     return Promise.reject(error);
   }
 );
 
-// Export the API URL for debugging
-export const API_URL = getApiUrl();
+// Helper function to get the current API URL (useful for debugging)
+api.getBaseURL = () => api.defaults.baseURL;
 
-console.log('API configured for:', API_URL);
+// Helper function to check if API is reachable
+api.checkConnection = async () => {
+  try {
+    const response = await api.get('/');
+    return { 
+      connected: true, 
+      message: response.data?.message || 'Connected',
+      baseURL: api.defaults.baseURL 
+    };
+  } catch (error) {
+    return { 
+      connected: false, 
+      message: error.message,
+      baseURL: api.defaults.baseURL,
+      error: error.response?.data || error.message
+    };
+  }
+};
 
 export default api;
