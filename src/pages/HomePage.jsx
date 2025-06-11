@@ -1,4 +1,4 @@
-// src/pages/HomePage.jsx - Improved responsive version
+// src/pages/HomePage.jsx - Updated with better error handling
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
@@ -54,35 +54,80 @@ const HomePage = () => {
 
   const fetchCourses = async () => {
     try {
+      setError('');
+      console.log('Starting to fetch courses...');
+      
       // Fetch featured courses
-      const featuredResponse = await api.get('/api/courses/published?isFeatured=true&limit=6');
-      if (featuredResponse.data.success) {
-        setFeaturedCourses(featuredResponse.data.data || []);
+      try {
+        console.log('Fetching featured courses...');
+        const featuredResponse = await api.get('/api/courses/published?isFeatured=true&limit=6');
+        console.log('Featured response:', featuredResponse);
+        
+        if (featuredResponse.data.success && featuredResponse.data.data) {
+          setFeaturedCourses(featuredResponse.data.data);
+          console.log(`Set ${featuredResponse.data.data.length} featured courses`);
+        }
+      } catch (featuredError) {
+        console.error('Error fetching featured courses:', featuredError);
       }
 
       // Fetch promoted courses
-      const promotedResponse = await api.get('/api/courses/published?promoted=true&limit=8');
-      if (promotedResponse.data.success) {
-        setPromotedCourses(promotedResponse.data.data || []);
+      try {
+        console.log('Fetching promoted courses...');
+        const promotedResponse = await api.get('/api/courses/published?promoted=true&limit=8');
+        console.log('Promoted response:', promotedResponse);
+        
+        if (promotedResponse.data.success && promotedResponse.data.data) {
+          setPromotedCourses(promotedResponse.data.data);
+          console.log(`Set ${promotedResponse.data.data.length} promoted courses`);
+        }
+      } catch (promotedError) {
+        console.error('Error fetching promoted courses:', promotedError);
       }
 
       // If no featured courses, fetch recent published courses
-      if ((featuredResponse.data.data || []).length === 0) {
-        const recentResponse = await api.get('/api/courses/published?limit=6&sort=newest');
-        if (recentResponse.data.success) {
-          setFeaturedCourses(recentResponse.data.data || []);
+      if (featuredCourses.length === 0) {
+        try {
+          console.log('No featured courses, fetching recent courses...');
+          const recentResponse = await api.get('/api/courses/published?limit=6&sort=newest');
+          console.log('Recent response:', recentResponse);
+          
+          if (recentResponse.data.success && recentResponse.data.data) {
+            setFeaturedCourses(recentResponse.data.data);
+            console.log(`Set ${recentResponse.data.data.length} recent courses as featured`);
+          }
+        } catch (recentError) {
+          console.error('Error fetching recent courses:', recentError);
         }
       }
 
-      // If no promoted courses, fetch some published courses
-      if ((promotedResponse.data.data || []).length === 0) {
-        const allCoursesResponse = await api.get('/api/courses/published?limit=4');
-        if (allCoursesResponse.data.success) {
-          setPromotedCourses(allCoursesResponse.data.data || []);
+      // If no promoted courses, fetch all published courses
+      if (promotedCourses.length === 0) {
+        try {
+          console.log('No promoted courses, fetching all courses...');
+          const allCoursesResponse = await api.get('/api/courses/published?limit=4');
+          console.log('All courses response:', allCoursesResponse);
+          
+          if (allCoursesResponse.data.success && allCoursesResponse.data.data) {
+            setPromotedCourses(allCoursesResponse.data.data);
+            console.log(`Set ${allCoursesResponse.data.data.length} courses as promoted`);
+          }
+        } catch (allError) {
+          console.error('Error fetching all courses:', allError);
         }
       }
+
+      // Additional debug: fetch course status
+      try {
+        const debugResponse = await api.get('/api/courses/debug/status');
+        console.log('Debug status:', debugResponse.data);
+      } catch (debugError) {
+        console.error('Debug endpoint error:', debugError);
+      }
+
     } catch (error) {
-      setError('Unable to load courses. Please refresh the page.');
+      console.error('General error fetching courses:', error);
+      setError('Unable to load courses. Please check your connection and refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -105,91 +150,118 @@ const HomePage = () => {
     navigate(`/courses?category=${category}`);
   };
 
-  const CourseCard = ({ course, isPromoted = false }) => (
-    <div className={`bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 transform hover:-translate-y-1 ${isPromoted ? 'ring-2 ring-yellow-400' : ''}`}>
-      {isPromoted && (
-        <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white text-xs font-bold px-3 py-1 text-center">
-          PROMOTED
-        </div>
-      )}
-      
-      <div className="p-4 sm:p-6">
-        <div className="flex flex-wrap gap-2 mb-3">
-          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-            course.courseCategory === 'prelims' ? 'bg-blue-100 text-blue-800' :
-            course.courseCategory === 'mains' ? 'bg-green-100 text-green-800' :
-            course.courseCategory === 'optionals' ? 'bg-purple-100 text-purple-800' :
-            course.courseCategory === 'test-series' ? 'bg-red-100 text-red-800' :
-            'bg-gray-100 text-gray-800'
-          }`}>
-            {course.courseCategory?.charAt(0).toUpperCase() + course.courseCategory?.slice(1)}
-          </span>
-          
-          {Array.isArray(course.courseType) && course.courseType.map((type, idx) => (
-            <span key={idx} className={`px-2 py-1 text-xs rounded-full ${
-              type === 'online' ? 'bg-blue-50 text-blue-700' :
-              type === 'offline' ? 'bg-green-50 text-green-700' :
-              'bg-purple-50 text-purple-700'
-            }`}>
-              {type.charAt(0).toUpperCase() + type.slice(1)}
-            </span>
-          ))}
-        </div>
+  const CourseCard = ({ course, isPromoted = false }) => {
+    // Handle missing or invalid course data
+    if (!course || !course._id) {
+      console.error('Invalid course data:', course);
+      return null;
+    }
 
-        <h3 className="text-base sm:text-lg font-semibold mb-2 text-gray-900 line-clamp-2">{course.title}</h3>
-        <p className="text-gray-600 text-sm mb-3 line-clamp-2">{course.description}</p>
-
-        <div className="flex items-center mb-3">
-          <div className="flex items-center">
-            <span className="text-yellow-400">⭐</span>
-            <span className="text-sm font-medium ml-1">{course.averageRating?.overall?.toFixed(1) || '0.0'}</span>
-            <span className="text-gray-500 text-sm ml-1">({course.totalReviews || 0} reviews)</span>
+    return (
+      <div className={`bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 transform hover:-translate-y-1 ${isPromoted ? 'ring-2 ring-yellow-400' : ''}`}>
+        {isPromoted && (
+          <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white text-xs font-bold px-3 py-1 text-center">
+            PROMOTED
           </div>
-        </div>
+        )}
+        
+        <div className="p-4 sm:p-6">
+          <div className="flex flex-wrap gap-2 mb-3">
+            {course.courseCategory && (
+              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                course.courseCategory === 'prelims' ? 'bg-blue-100 text-blue-800' :
+                course.courseCategory === 'mains' ? 'bg-green-100 text-green-800' :
+                course.courseCategory === 'optionals' ? 'bg-purple-100 text-purple-800' :
+                course.courseCategory === 'test-series' ? 'bg-red-100 text-red-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                {course.courseCategory.charAt(0).toUpperCase() + course.courseCategory.slice(1)}
+              </span>
+            )}
+            
+            {Array.isArray(course.courseType) && course.courseType.map((type, idx) => (
+              <span key={idx} className={`px-2 py-1 text-xs rounded-full ${
+                type === 'online' ? 'bg-blue-50 text-blue-700' :
+                type === 'offline' ? 'bg-green-50 text-green-700' :
+                'bg-purple-50 text-purple-700'
+              }`}>
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+              </span>
+            ))}
+          </div>
 
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              {course.discount > 0 && (
-                <span className="text-gray-400 line-through text-sm">₹{course.originalPrice?.toLocaleString()}</span>
-              )}
-              <span className="text-base sm:text-lg font-bold text-gray-900">₹{course.price?.toLocaleString()}</span>
-              {course.discount > 0 && (
-                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
-                  {course.discount}% OFF
+          <h3 className="text-base sm:text-lg font-semibold mb-2 text-gray-900 line-clamp-2">
+            {course.title || 'Untitled Course'}
+          </h3>
+          <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+            {course.description || 'No description available'}
+          </p>
+
+          <div className="flex items-center mb-3">
+            <div className="flex items-center">
+              <span className="text-yellow-400">⭐</span>
+              <span className="text-sm font-medium ml-1">
+                {course.averageRating?.overall?.toFixed(1) || '0.0'}
+              </span>
+              <span className="text-gray-500 text-sm ml-1">
+                ({course.totalReviews || 0} reviews)
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                {course.discount > 0 && course.originalPrice && (
+                  <span className="text-gray-400 line-through text-sm">
+                    ₹{course.originalPrice.toLocaleString()}
+                  </span>
+                )}
+                <span className="text-base sm:text-lg font-bold text-gray-900">
+                  ₹{(course.price || 0).toLocaleString()}
                 </span>
+                {course.discount > 0 && (
+                  <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
+                    {course.discount}% OFF
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {course.city || 'Online'} • {course.duration || 'Flexible'} • 
+                {Array.isArray(course.courseLanguages) ? course.courseLanguages.join(', ') : 'English'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              <span className="font-medium">
+                {course.institution?.institutionName || 'Institution'}
+              </span>
+              {course.faculty && course.faculty.length > 0 && course.faculty[0].name && (
+                <p className="text-xs mt-1">by {course.faculty[0].name}</p>
               )}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {course.city} • {course.duration} • {course.courseLanguages?.join(', ') || course.language?.join(', ')}
-            </p>
+            <Link
+              to={`/courses/${course._id}`}
+              className="bg-gray-800 hover:bg-gray-900 text-white text-xs sm:text-sm font-medium py-2 px-3 sm:px-4 rounded transition"
+            >
+              View Details
+            </Link>
           </div>
-        </div>
 
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            <span className="font-medium">{course.institution?.institutionName}</span>
-            {course.faculty && course.faculty.length > 0 && (
-              <p className="text-xs mt-1">by {course.faculty[0].name}</p>
-            )}
-          </div>
-          <Link
-            to={`/courses/${course._id}`}
-            className="bg-gray-800 hover:bg-gray-900 text-white text-xs sm:text-sm font-medium py-2 px-3 sm:px-4 rounded transition"
-          >
-            View Details
-          </Link>
-        </div>
-
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>Starts: {new Date(course.startDate).toLocaleDateString()}</span>
-            <span>{course.currentEnrollments} enrolled</span>
-          </div>
+          {course.startDate && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>Starts: {new Date(course.startDate).toLocaleDateString()}</span>
+                <span>{course.currentEnrollments || 0} enrolled</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="bg-gray-50 min-h-screen">
@@ -301,7 +373,7 @@ const HomePage = () => {
       </section>
 
       {/* Promoted Courses Carousel */}
-      {promotedCourses.length > 0 && (
+      {!loading && promotedCourses.length > 0 && (
         <section className="py-8 sm:py-12 md:py-16 bg-gradient-to-r from-yellow-50 to-orange-50">
           <div className="container mx-auto px-4">
             <div className="flex items-center justify-between mb-6 sm:mb-8">
@@ -331,8 +403,14 @@ const HomePage = () => {
           </div>
 
           {error && (
-            <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-6 text-sm sm:text-base">
-              {error}
+            <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-6 text-sm sm:text-base flex items-center justify-between">
+              <span>{error}</span>
+              <button 
+                onClick={fetchCourses} 
+                className="ml-4 underline hover:no-underline font-medium"
+              >
+                Retry
+              </button>
             </div>
           )}
 
@@ -340,13 +418,28 @@ const HomePage = () => {
             <div className="flex justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900"></div>
             </div>
-          ) : featuredCourses.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-600">No featured courses available at the moment.</p>
+          ) : featuredCourses.length === 0 && promotedCourses.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-lg">
+              <p className="text-gray-600 mb-4">No courses available at the moment.</p>
+              <p className="text-sm text-gray-500 mb-6">
+                Courses need to be published by institutions to appear here.
+              </p>
+              <Link 
+                to="/courses" 
+                className="inline-block bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+              >
+                Browse All Courses
+              </Link>
+            </div>
+          ) : featuredCourses.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+              {featuredCourses.map(course => (
+                <CourseCard key={course._id} course={course} />
+              ))}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
-              {featuredCourses.map(course => (
+              {promotedCourses.slice(0, 3).map(course => (
                 <CourseCard key={course._id} course={course} />
               ))}
             </div>

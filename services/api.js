@@ -1,36 +1,33 @@
-// src/services/api.js
+// services/api.js
 import axios from 'axios';
 
-// Simple API URL configuration
-// In development (localhost): uses localhost:5000
-// In production: uses the Vercel backend URL
-const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:5000' 
-  : 'https://chq-backend.vercel.app';
+// Get API URL from environment variable with fallback
+const API_URL = import.meta.env.VITE_API_URL;
 
-console.log('Current hostname:', window.location.hostname);
-console.log('Using API URL:', API_URL);
-
-// Create axios instance
+// Create axios instance with base configuration
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 10000, // 10 second timeout
-  withCredentials: false // Disable for now to avoid CORS issues
 });
 
-// Add token to requests
+// Request interceptor to add token to all requests
 api.interceptors.request.use(
   (config) => {
+    // Get token from localStorage
     const token = localStorage.getItem('token');
+    
+    // If token exists, add it to request headers
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Log request details for debugging
-    console.log(`Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+    // Log request details in development mode
+    if (import.meta.env.DEV) {
+      console.log(`🚀 ${config.method?.toUpperCase()} request to: ${config.url}`);
+    }
     
     return config;
   },
@@ -40,38 +37,62 @@ api.interceptors.request.use(
   }
 );
 
-// Handle responses and errors
+// Response interceptor to handle common response scenarios
 api.interceptors.response.use(
   (response) => {
+    // Log successful responses in development mode
+    if (import.meta.env.DEV) {
+      console.log(`✅ Response from ${response.config.url}:`, response.data);
+    }
     return response;
   },
   (error) => {
-    if (error.code === 'ECONNABORTED') {
-      console.error('Request timeout');
-    } else if (error.response) {
-      console.error('API Error Response:', {
-        status: error.response.status,
-        data: error.response.data,
-        headers: error.response.headers
-      });
+    // Handle 401 Unauthorized errors
+    if (error.response?.status === 401) {
+      // Clear stored auth data
+      localStorage.removeItem('token');
+      localStorage.removeItem('role');
       
-      if (error.response.status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('role');
-        // Only redirect if not already on login page
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
-        }
+      // Dispatch custom event for auth state change
+      window.dispatchEvent(new Event('authChange'));
+      
+      // Only redirect to login if not already there
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
       }
-    } else if (error.request) {
-      console.error('No response received:', error.request);
-      console.error('Backend might be down or CORS issue');
-    } else {
-      console.error('Error setting up request:', error.message);
+    }
+    
+    // Log errors in development mode
+    if (import.meta.env.DEV) {
+      console.error(`❌ API Error:`, {
+        url: error.config?.url,
+        status: error.response?.status,
+        message: error.response?.data?.message || error.message,
+        data: error.response?.data
+      });
     }
     
     return Promise.reject(error);
   }
 );
+
+// Helper function to check API health
+export const checkAPIHealth = async () => {
+  try {
+    const response = await api.get('/');
+    return response.data;
+  } catch (error) {
+    console.error('API health check failed:', error);
+    return null;
+  }
+};
+
+// Log API configuration on initialization
+if (import.meta.env.DEV) {
+  console.log('🔧 API Configuration:', {
+    baseURL: API_URL,
+    environment: import.meta.env.MODE,
+  });
+}
 
 export default api;
