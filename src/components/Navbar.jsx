@@ -1,4 +1,4 @@
-// src/components/Navbar.jsx - Improved responsive version
+// src/components/Navbar.jsx - Updated with React Router Link components
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ProfileDropdown from './ProfileDropdown';

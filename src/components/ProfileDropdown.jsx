@@ -1,6 +1,6 @@
-// src/components/ProfileDropdown.jsx
+// src/components/ProfileDropdown.jsx - Updated with React Router Link
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 
 const ProfileDropdown = ({ onLogout }) => {
@@ -136,24 +136,20 @@ const ProfileDropdown = ({ onLogout }) => {
               </p>
             </div>
             
-            <a
-              href={getDashboardLink()}
+            <Link
+              to={getDashboardLink()}
               className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
               onClick={() => setIsOpen(false)}
             >
               Dashboard
-            </a>
-            <a
-              href="#profile-settings"
+            </Link>
+            <Link
+              to="/profile-settings"
               className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              onClick={(e) => {
-                e.preventDefault();
-                setIsOpen(false);
-                navigate('/profile-settings');
-              }}
+              onClick={() => setIsOpen(false)}
             >
               Profile Settings
-            </a>
+            </Link>
             <button
               onClick={handleLogout}
               className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
