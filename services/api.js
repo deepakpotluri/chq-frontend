@@ -2,15 +2,29 @@
 import axios from 'axios';
 
 // Get API URL from environment variable with fallback
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+// Ensure the URL doesn't have a trailing slash
+const baseURL = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+
+// Log configuration for debugging
+console.log('🔧 API Configuration:', {
+  VITE_API_URL: import.meta.env.VITE_API_URL,
+  API_URL: API_URL,
+  baseURL: baseURL,
+  MODE: import.meta.env.MODE,
+  DEV: import.meta.env.DEV,
+  PROD: import.meta.env.PROD,
+  allEnvVars: Object.keys(import.meta.env).filter(key => key.startsWith('VITE_'))
+});
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 30000, // 30 second timeout for Vercel cold starts
 });
 
 // Request interceptor to add token to all requests
@@ -27,6 +41,7 @@ api.interceptors.request.use(
     // Log request details in development mode
     if (import.meta.env.DEV) {
       console.log(`🚀 ${config.method?.toUpperCase()} request to: ${config.url}`);
+      console.log('Full URL:', `${config.baseURL}${config.url}`);
     }
     
     return config;
@@ -47,6 +62,16 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Log the full error details
+    console.error(`❌ API Error:`, {
+      url: error.config?.url,
+      baseURL: error.config?.baseURL,
+      fullURL: error.config?.baseURL + error.config?.url,
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      data: error.response?.data
+    });
+    
     // Handle 401 Unauthorized errors
     if (error.response?.status === 401) {
       // Clear stored auth data
@@ -62,16 +87,6 @@ api.interceptors.response.use(
       }
     }
     
-    // Log errors in development mode
-    if (import.meta.env.DEV) {
-      console.error(`❌ API Error:`, {
-        url: error.config?.url,
-        status: error.response?.status,
-        message: error.response?.data?.message || error.message,
-        data: error.response?.data
-      });
-    }
-    
     return Promise.reject(error);
   }
 );
@@ -79,6 +94,7 @@ api.interceptors.response.use(
 // Helper function to check API health
 export const checkAPIHealth = async () => {
   try {
+    console.log('Checking API health at:', `${baseURL}/`);
     const response = await api.get('/');
     return response.data;
   } catch (error) {
@@ -87,11 +103,14 @@ export const checkAPIHealth = async () => {
   }
 };
 
-// Log API configuration on initialization
-if (import.meta.env.DEV) {
-  console.log('🔧 API Configuration:', {
-    baseURL: API_URL,
-    environment: import.meta.env.MODE,
+// Test the API URL immediately
+if (typeof window !== 'undefined') {
+  checkAPIHealth().then(result => {
+    if (result) {
+      console.log('✅ API is reachable:', result);
+    } else {
+      console.error('❌ API is not reachable');
+    }
   });
 }
 
