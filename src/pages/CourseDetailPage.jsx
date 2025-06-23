@@ -1,54 +1,107 @@
+// CourseDetailPage.jsx - Updated with new styling
 import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import api from '../../services/api';
 
+import CourseScheduleCalendar from '../components/CourseScheduleCalendar';
+
 const CourseDetailPage = () => {
+  const { id: courseId } = useParams();
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
-  const [isShortlisted, setIsShortlisted] = useState(false);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [reviewFormVisible, setReviewFormVisible] = useState(false);
+  const [isShortlisted, setIsShortlisted] = useState(false);
   const [newReview, setNewReview] = useState({
     courseRating: 5,
     instituteRating: 5,
     facultyRating: 5,
     reviewText: ''
   });
+  const [scheduleView, setScheduleView] = useState('list');
+const [selectedDate, setSelectedDate] = useState(null);
+const [showDaySchedule, setShowDaySchedule] = useState(false);
+const [selectedSession, setSelectedSession] = useState(null);
+const [showSessionInfo, setShowSessionInfo] = useState(false);
+// Helper function to format time with AM/PM
+const formatTime12Hour = (time24) => {
+  if (!time24) return '';
+  const [hours, minutes] = time24.split(':');
+  const hour = parseInt(hours);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${minutes} ${ampm}`;
+};
 
-  // Get course ID from URL
-  const courseId = window.location.pathname.split('/').pop();
+// Handler for calendar event clicks
+const handleCalendarEventClick = (event) => {
+  setSelectedSession(event);
+  setShowSessionInfo(true);
+};
 
   useEffect(() => {
     fetchCourseDetails();
+    trackCourseView();
     checkShortlistStatus();
   }, [courseId]);
 
   const fetchCourseDetails = async () => {
     try {
       const response = await api.get(`/api/courses/${courseId}`);
-      setCourse(response.data.data);
-      
-      // Increment view count
-      await api.post(`/api/courses/${courseId}/view`);
+      if (response.data.success) {
+        setCourse(response.data.data);
+        
+        // IMPORTANT: Also fetch ALL reviews (including pending ones) if user is logged in
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const completeResponse = await api.get(`/api/courses/${courseId}/complete`);
+            if (completeResponse.data.success) {
+              // Merge all reviews but mark their status
+              const allReviews = completeResponse.data.data.reviews || [];
+              setCourse(prev => ({
+                ...prev,
+                reviews: allReviews,
+                approvedReviews: allReviews.filter(r => r.verificationStatus === 'approved')
+              }));
+            }
+          } catch (err) {
+            console.log('Complete course data not available');
+          }
+        }
+      }
     } catch (err) {
-      console.error('Error fetching course details:', err);
       setError('Failed to load course details');
+      console.error('Error fetching course:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const trackCourseView = async () => {
+    try {
+      await api.post(`/api/courses/${courseId}/view`);
+    } catch (err) {
+      console.error('Error tracking view:', err);
     }
   };
 
   const checkShortlistStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) return;
-      
-      const response = await api.get('/api/aspirant/shortlist');
-      const shortlisted = response.data.courses.some(c => c.course._id === courseId);
-      setIsShortlisted(shortlisted);
+      if (token) {
+        const response = await api.get('/api/aspirant/shortlist');
+        if (response.data.success) {
+          const shortlistedCourses = response.data.data?.courses || [];
+          setIsShortlisted(shortlistedCourses.some(item => 
+            item.course._id === courseId || item.course === courseId
+          ));
+        }
+      }
     } catch (err) {
-      console.error('Error checking shortlist status:', err);
+      console.error('Error checking shortlist:', err);
     }
   };
 
@@ -63,9 +116,15 @@ const CourseDetailPage = () => {
       if (isShortlisted) {
         await api.delete(`/api/aspirant/shortlist/${courseId}`);
         setIsShortlisted(false);
+        alert('Course removed from shortlist');
       } else {
         await api.post(`/api/aspirant/shortlist/${courseId}`);
         setIsShortlisted(true);
+        alert('Course added to shortlist!');
+      }
+      
+      if (course) {
+        await course.addToShortlist();
       }
     } catch (err) {
       console.error('Error updating shortlist:', err);
@@ -105,7 +164,7 @@ const CourseDetailPage = () => {
       }
 
       await api.post(`/api/courses/${courseId}/reviews`, newReview);
-      alert('Review submitted successfully!');
+      alert('Review submitted successfully! It will be visible after verification.');
       setReviewFormVisible(false);
       fetchCourseDetails(); // Refresh to show new review
     } catch (err) {
@@ -157,10 +216,12 @@ const CourseDetailPage = () => {
   }
 
   const discountedPrice = course.discount > 0 ? Math.round(course.price * (1 - course.discount / 100)) : course.price;
-  const availableSeats = course.maxStudents > 0 ? course.maxStudents - course.currentEnrollments : 'Unlimited';
-  const isSeatsLimited = course.maxStudents > 0 && (course.maxStudents - course.currentEnrollments) <= 10;
+  const availableSeats = course.maxStudents > 0 ? course.maxStudents - course.currentEnrollments : null;
+  const isSeatsLimited = availableSeats !== null && availableSeats < 20;
 
-  return (
+  // Get display reviews based on login status
+  const displayReviews = localStorage.getItem('token') ? course.reviews : course.approvedReviews || course.reviews?.filter(r => r.verificationStatus === 'approved') || [];
+ return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
       <div className="bg-white border-b">
@@ -612,61 +673,432 @@ const CourseDetailPage = () => {
                   </div>
                 )}
 
-                {/* Schedule Tab */}
-                {activeTab === 'schedule' && (
-                  <div className="space-y-6">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Class Schedule</h2>
-                    
-                    <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                      <div className="flex items-center">
-                        <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <div>
-                          <p className="text-sm text-blue-900">
-                            Classes start on <strong>{new Date(course.startDate).toLocaleDateString()}</strong> and end on <strong>{new Date(course.endDate).toLocaleDateString()}</strong>
-                          </p>
+{/* Schedule Tab */}
+{activeTab === 'schedule' && (
+  <div className="space-y-6">
+    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+      <h2 className="text-2xl font-bold text-gray-900">Class Schedule</h2>
+      <div className="flex gap-2 mt-4 sm:mt-0">
+        <button 
+          onClick={() => setScheduleView('calendar')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            scheduleView === 'calendar' 
+              ? 'bg-gray-900 text-white' 
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          📅 Calendar View
+        </button>
+        <button 
+          onClick={() => setScheduleView('list')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            scheduleView === 'list' 
+              ? 'bg-gray-900 text-white' 
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          📋 List View
+        </button>
+      </div>
+    </div>
+    
+    <div className="bg-blue-50 p-4 rounded-lg mb-6">
+      <div className="flex items-center">
+        <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div>
+          <p className="text-sm text-blue-900">
+            Classes start on <strong>{new Date(course.startDate).toLocaleDateString()}</strong> and end on <strong>{new Date(course.endDate).toLocaleDateString()}</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {/* Schedule Content */}
+    {course.schedule && course.schedule.length > 0 ? (
+      <>
+        {/* Calendar View using existing CourseScheduleCalendar component */}
+        {scheduleView === 'calendar' && (
+          <div>
+            <CourseScheduleCalendar 
+              initialSchedule={course.schedule}
+              startDate={course.startDate}
+              endDate={course.endDate}
+              onScheduleChange={() => {}} // Read-only for display
+              readOnly={true} // Pass readOnly prop to disable editing
+              onEventClick={handleCalendarEventClick} // Pass event click handler
+            />
+          </div>
+        )}
+
+        {/* List View */}
+        {scheduleView === 'list' && (
+          <div className="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar">
+            {Object.entries(
+              course.schedule.reduce((acc, session) => {
+                const date = session.date;
+                if (!acc[date]) acc[date] = [];
+                acc[date].push(session);
+                return acc;
+              }, {})
+            )
+              .sort(([dateA], [dateB]) => new Date(dateA) - new Date(dateB))
+              .map(([date, sessions]) => {
+                const dayDate = new Date(date);
+                const isToday = new Date().toDateString() === dayDate.toDateString();
+                const isPast = dayDate < new Date() && !isToday;
+                
+                return (
+                  <div 
+                    key={date} 
+                    className={`group transition-all duration-300 ${
+                      isPast ? 'opacity-60' : ''
+                    }`}
+                  >
+                    {/* Date Header */}
+                    <div className={`sticky top-0 z-10 bg-gradient-to-r ${
+                      isToday 
+                        ? 'from-blue-600 to-indigo-600' 
+                        : 'from-gray-100 to-gray-200'
+                    } p-4 rounded-t-xl`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${
+                            isToday ? 'bg-white/20' : 'bg-white'
+                          }`}>
+                            <svg className={`w-5 h-5 ${
+                              isToday ? 'text-white' : 'text-gray-600'
+                            }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h3 className={`font-bold text-lg ${
+                              isToday ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              {dayDate.toLocaleDateString('en-US', { weekday: 'long' })}
+                              {isToday && <span className="ml-2 text-sm font-normal">(Today)</span>}
+                            </h3>
+                            <p className={`text-sm ${
+                              isToday ? 'text-white/80' : 'text-gray-600'
+                            }`}>
+                              {dayDate.toLocaleDateString('en-US', { 
+                                month: 'long', 
+                                day: 'numeric', 
+                                year: 'numeric' 
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          isToday 
+                            ? 'bg-white/20 text-white' 
+                            : 'bg-white text-gray-700'
+                        }`}>
+                          {sessions.length} session{sessions.length > 1 ? 's' : ''}
                         </div>
                       </div>
                     </div>
-
-                    {course.weeklySchedule && course.weeklySchedule.length > 0 ? (
-                      <div className="space-y-4">
-                        {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => {
-                          const daySchedule = course.weeklySchedule.find(s => s.day === day);
-                          if (!daySchedule || !daySchedule.sessions || daySchedule.sessions.length === 0) return null;
+                    
+                    {/* Sessions Cards */}
+                    <div className="bg-white rounded-b-xl shadow-lg p-4 space-y-3">
+                      {sessions
+                        .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                        .map((session, idx) => {
+                          const typeConfig = {
+                            lecture: { bg: 'bg-blue-500', icon: '📚', label: 'Lecture' },
+                            test: { bg: 'bg-yellow-500', icon: '📝', label: 'Test' },
+                            'doubt-clearing': { bg: 'bg-green-500', icon: '❓', label: 'Doubt Clearing' },
+                            discussion: { bg: 'bg-purple-500', icon: '💬', label: 'Discussion' },
+                            exam: { bg: 'bg-red-500', icon: '📋', label: 'Exam' },
+                            workshop: { bg: 'bg-indigo-500', icon: '🛠️', label: 'Workshop' }
+                          };
+                          
+                          const config = typeConfig[session.type] || { 
+                            bg: 'bg-gray-500', 
+                            icon: '📅', 
+                            label: session.type 
+                          };
                           
                           return (
-                            <div key={day} className="border rounded-lg overflow-hidden">
-                              <div className="bg-gray-50 p-4">
-                                <h4 className="font-semibold text-gray-900 capitalize">{day}</h4>
-                              </div>
-                              <div className="p-4 space-y-3">
-                                {daySchedule.sessions.map((session, idx) => (
-                                  <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <div className="flex-1">
-                                      <div className="font-medium text-gray-900">{session.subject}</div>
-                                      <div className="text-sm text-gray-600 mt-1">
-                                        {session.faculty} • {session.type}
+                            <div
+                              key={session.id || idx}
+                              className="group relative overflow-hidden rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-300 cursor-pointer"
+                              onClick={() => {
+                                setSelectedSession(session);
+                                setShowSessionInfo(true);
+                              }}
+                            >
+                              {/* Left Color Bar */}
+                              <div 
+                                className={`absolute left-0 top-0 bottom-0 w-1 ${config.bg}`}
+                                style={{ backgroundColor: session.color }}
+                              />
+                              
+                              <div className="pl-6 pr-4 py-4">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    {/* Header */}
+                                    <div className="flex items-start gap-3 mb-3">
+                                      <div className="text-2xl">{config.icon}</div>
+                                      <div className="flex-1">
+                                        <h4 className="font-semibold text-gray-900 text-lg group-hover:text-blue-600 transition-colors">
+                                          {session.title}
+                                        </h4>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <span className="text-xs px-2 py-1 bg-gray-100 rounded-full text-gray-600 font-medium">
+                                            {config.label}
+                                          </span>
+                                          {session.isRecurring && (
+                                            <span className="text-xs px-2 py-1 bg-blue-100 rounded-full text-blue-600 font-medium">
+                                              Recurring
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                    <div className="text-sm font-medium text-gray-900">
-                                      {session.startTime} - {session.endTime}
+                                    
+                                    {/* Details */}
+                                    <div className="space-y-2 text-sm">
+                                      {session.subject && (
+                                        <div className="flex items-center gap-2 text-gray-600">
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                          </svg>
+                                          <span><strong>Subject:</strong> {session.subject}</span>
+                                        </div>
+                                      )}
+                                      
+                                      {session.faculty && (
+                                        <div className="flex items-center gap-2 text-gray-600">
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                          </svg>
+                                          <span><strong>Faculty:</strong> {session.faculty}</span>
+                                        </div>
+                                      )}
+                                      
+                                      {session.description && (
+                                        <div className="text-gray-600 mt-2">
+                                          <p className="line-clamp-2">{session.description}</p>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
-                                ))}
+                                  
+                                  {/* Compact Time in Single Line */}
+                                  <div className="ml-4 text-right">
+                                    <div className="bg-gray-50 rounded-lg px-3 py-2">
+                                      <div className="text-sm font-bold text-gray-900 whitespace-nowrap">
+                                        {formatTime12Hour(session.startTime)} - {formatTime12Hour(session.endTime)}
+                                      </div>
+                                      <div className="text-xs text-gray-500 mt-1 font-medium">
+                                        {(() => {
+                                          const start = new Date(`2000-01-01 ${session.startTime}`);
+                                          const end = new Date(`2000-01-01 ${session.endTime}`);
+                                          const duration = (end - start) / (1000 * 60);
+                                          const hours = Math.floor(duration / 60);
+                                          const minutes = duration % 60;
+                                          return hours > 0 
+                                            ? `${hours}h ${minutes > 0 ? minutes + 'm' : ''}`
+                                            : `${minutes}m`;
+                                        })()}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           );
                         })}
-                      </div>
-                    ) : (
-                      <div className="bg-gray-50 p-8 rounded-lg text-center">
-                        <p className="text-gray-600">Detailed schedule will be shared after enrollment.</p>
-                      </div>
-                    )}
+                    </div>
                   </div>
+                );
+              })}
+          </div>
+        )}
+        
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200">
+            <div className="text-3xl mb-2">📚</div>
+            <div className="text-2xl font-bold text-blue-900">
+              {course.schedule.length}
+            </div>
+            <div className="text-sm text-blue-700 font-medium">Total Sessions</div>
+          </div>
+          
+          <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200">
+            <div className="text-3xl mb-2">👨‍🏫</div>
+            <div className="text-2xl font-bold text-green-900">
+              {course.schedule.filter(s => s.type === 'lecture').length}
+            </div>
+            <div className="text-sm text-green-700 font-medium">Lectures</div>
+          </div>
+          
+          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-xl border border-yellow-200">
+            <div className="text-3xl mb-2">📝</div>
+            <div className="text-2xl font-bold text-yellow-900">
+              {course.schedule.filter(s => s.type === 'test' || s.type === 'exam').length}
+            </div>
+            <div className="text-sm text-yellow-700 font-medium">Tests/Exams</div>
+          </div>
+          
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200">
+            <div className="text-3xl mb-2">⏱️</div>
+            <div className="text-2xl font-bold text-purple-900">
+              {(() => {
+                const totalMinutes = course.schedule.reduce((total, session) => {
+                  const start = new Date(`2000-01-01 ${session.startTime}`);
+                  const end = new Date(`2000-01-01 ${session.endTime}`);
+                  return total + (end - start) / (1000 * 60);
+                }, 0);
+                const hours = Math.floor(totalMinutes / 60);
+                return `${hours}h`;
+              })()}
+            </div>
+            <div className="text-sm text-purple-700 font-medium">Total Hours</div>
+          </div>
+        </div>
+      </>
+    ) : course.weeklySchedule && course.weeklySchedule.length > 0 ? (
+      // Fallback to weekly schedule if no specific schedule exists
+      <div className="space-y-4">
+        {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => {
+          const daySchedule = course.weeklySchedule.find(s => s.day === day);
+          if (!daySchedule || !daySchedule.sessions || daySchedule.sessions.length === 0) return null;
+          
+          return (
+            <div key={day} className="border rounded-lg overflow-hidden">
+              <div className="bg-gray-50 p-4">
+                <h4 className="font-semibold text-gray-900 capitalize">{day}</h4>
+              </div>
+              <div className="p-4 space-y-3">
+                {daySchedule.sessions.map((session, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{session.subject}</div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        {session.faculty} • {session.type}
+                      </div>
+                    </div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {formatTime12Hour(session.startTime)} - {formatTime12Hour(session.endTime)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    ) : (
+      <div className="bg-gray-50 p-12 rounded-xl text-center">
+        <div className="text-6xl mb-4">📅</div>
+        <p className="text-gray-600 text-lg">Schedule information will be updated soon.</p>
+      </div>
+    )}
+    
+    {/* Session Info Modal */}
+    {showSessionInfo && selectedSession && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl max-w-lg w-full">
+          <div className="p-6 border-b">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900">Session Details</h3>
+              <button
+                onClick={() => {
+                  setShowSessionInfo(false);
+                  setSelectedSession(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition"
+              >
+                <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="space-y-4">
+              {/* Session Type Badge */}
+              <div className="flex items-center gap-3">
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  selectedSession.type === 'lecture' ? 'bg-blue-100 text-blue-700' :
+                  selectedSession.type === 'test' ? 'bg-yellow-100 text-yellow-700' :
+                  selectedSession.type === 'doubt-clearing' ? 'bg-green-100 text-green-700' :
+                  selectedSession.type === 'discussion' ? 'bg-purple-100 text-purple-700' :
+                  selectedSession.type === 'exam' ? 'bg-red-100 text-red-700' :
+                  'bg-gray-100 text-gray-700'
+                }`}>
+                  {selectedSession.type.charAt(0).toUpperCase() + selectedSession.type.slice(1).replace('-', ' ')}
+                </span>
+                {selectedSession.isRecurring && (
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                    Recurring
+                  </span>
                 )}
+              </div>
+              
+              {/* Title */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900">{selectedSession.title}</h4>
+              </div>
+              
+              {/* Date & Time */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">Date</span>
+                  <span className="font-medium text-gray-900">
+                    {new Date(selectedSession.date).toLocaleDateString('en-US', { 
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Time</span>
+                  <span className="font-medium text-gray-900">
+                    {formatTime12Hour(selectedSession.startTime)} - {formatTime12Hour(selectedSession.endTime)}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Subject */}
+              {selectedSession.subject && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-600 mb-1">Subject</h5>
+                  <p className="text-gray-900">{selectedSession.subject}</p>
+                </div>
+              )}
+              
+              {/* Faculty */}
+              {selectedSession.faculty && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-600 mb-1">Faculty</h5>
+                  <p className="text-gray-900">{selectedSession.faculty}</p>
+                </div>
+              )}
+              
+              {/* Description */}
+              {selectedSession.description && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-600 mb-1">Description</h5>
+                  <p className="text-gray-900">{selectedSession.description}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+)}
+
 
                 {/* Reviews Tab */}
                 {activeTab === 'reviews' && (

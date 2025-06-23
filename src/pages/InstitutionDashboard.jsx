@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
+import CourseScheduleComponent from '../components/CourseScheduleCalendar';
 
 const InstitutionDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -554,32 +555,32 @@ const InstitutionDashboard = () => {
                     )}
                   </div>
                   
-                  <div className="bg-white border rounded-lg p-6">
-                    <h3 className="text-lg font-semibold mb-4">Recent Reviews</h3>
-                    {reviews.length > 0 ? (
-                      <div className="space-y-3">
-                        {reviews.slice(0, 5).map((review, idx) => (
-                          <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
-                            <div className="flex-1">
-                              <p className="font-medium line-clamp-1">{review.course.title}</p>
-                              <div className="flex items-center gap-2 text-sm">
-                                <span className="text-yellow-500">{review.courseRating}⭐</span>
-                                <span className={`px-2 py-0.5 text-xs rounded-full ${
-                                  review.verificationStatus === 'approved' ? 'bg-green-100 text-green-800' :
-                                  review.verificationStatus === 'rejected' ? 'bg-red-100 text-red-800' :
-                                  'bg-yellow-100 text-yellow-800'
-                                }`}>
-                                  {review.verificationStatus}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-gray-600 text-center py-4">No reviews yet</p>
-                    )}
-                  </div>
+                 <div className="bg-white border rounded-lg p-6">
+  <h3 className="text-lg font-semibold mb-4">Recent Reviews</h3>
+  {reviews.length > 0 ? (
+    <div className="space-y-3">
+      {reviews.slice(0, 5).map((review, idx) => (
+        <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+          <div className="flex-1">
+            <p className="font-medium line-clamp-1">{review.courseTitle || review.courseName || 'Course'}</p>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-yellow-500">{review.rating || 0}⭐</span>
+              <span className={`px-2 py-0.5 text-xs rounded-full ${
+                review.verificationStatus === 'approved' ? 'bg-green-100 text-green-800' :
+                review.verificationStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                'bg-yellow-100 text-yellow-800'
+              }`}>
+                {review.verificationStatus || 'pending'}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <p className="text-gray-600 text-center py-4">No reviews yet</p>
+  )}
+</div>
                 </div>
               </div>
             )}
@@ -802,103 +803,126 @@ const InstitutionDashboard = () => {
 
             {/* Reviews Tab */}
             {activeTab === 'reviews' && (
+  <div>
+    <h2 className="text-xl font-semibold mb-6 text-gray-900">Student Reviews</h2>
+    {reviews.length === 0 ? (
+      <div className="text-center py-12 bg-gray-50 rounded-lg">
+        <div className="text-4xl mb-4">⭐</div>
+        <h3 className="text-lg font-medium text-gray-700 mb-2">No reviews yet</h3>
+        <p className="text-gray-600">Student reviews will appear here</p>
+      </div>
+    ) : (
+      <div className="space-y-6">
+        {reviews.map((review) => (
+          <div key={review._id} className="bg-white border rounded-lg p-6">
+            <div className="flex justify-between items-start mb-4">
               <div>
-                <h2 className="text-xl font-semibold mb-6 text-gray-900">Student Reviews</h2>
-                {reviews.length === 0 ? (
-                  <div className="text-center py-12 bg-gray-50 rounded-lg">
-                    <div className="text-4xl mb-4">⭐</div>
-                    <h3 className="text-lg font-medium text-gray-700 mb-2">No reviews yet</h3>
-                    <p className="text-gray-600">Student reviews will appear here</p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {reviews.map((review) => (
-                      <div key={review._id} className="bg-white border rounded-lg p-6">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h3 className="font-semibold">{review.course.title}</h3>
-                            <p className="text-sm text-gray-600">By: {review.user?.name || 'Anonymous'}</p>
-                          </div>
-                          <div className="text-right">
-                            <div className="flex items-center gap-2 text-sm">
-                              <span>Course: {review.courseRating}⭐</span>
-                              <span>Institute: {review.instituteRating}⭐</span>
-                              <span>Faculty: {review.facultyRating}⭐</span>
-                            </div>
-                            <span className={`inline-block mt-1 px-2 py-1 text-xs rounded-full ${
-                              review.verificationStatus === 'approved' ? 'bg-green-100 text-green-800' :
-                              review.verificationStatus === 'rejected' ? 'bg-red-100 text-red-800' :
-                              'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {review.verificationStatus}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <p className="text-gray-700 mb-4">{review.reviewText}</p>
-                        
-                        {review.rejectionReason && (
-                          <div className="bg-red-50 p-3 rounded text-sm text-red-800 mb-4">
-                            <span className="font-medium">Admin Feedback:</span> {review.rejectionReason}
-                          </div>
-                        )}
-                        
-                        <div className="flex items-center justify-between text-sm text-gray-600">
-                          <span>{new Date(review.createdAt).toLocaleDateString()}</span>
-                          <span>👍 {review.helpfulVotes || 0} found helpful</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <h3 className="font-semibold">{review.courseTitle || review.courseName || 'Course'}</h3>
+                <p className="text-sm text-gray-600">By: {review.student?.name || 'Anonymous'}</p>
               </div>
-            )}
-
-            {/* Earnings Tab */}
-            {activeTab === 'earnings' && earnings && (
-              <div className="space-y-8">
-                <h2 className="text-xl font-semibold text-gray-900">Earnings Overview</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <div className="bg-green-50 p-6 rounded-lg border border-green-100">
-                    <h3 className="text-sm font-medium text-green-900">Total Earnings</h3>
-                    <p className="text-2xl font-bold text-green-900">₹{earnings.totalEarnings.toLocaleString()}</p>
-                    <p className="text-xs text-green-700">All time</p>
-                  </div>
-
-                  <div className="bg-blue-50 p-6 rounded-lg border border-blue-100">
-                    <h3 className="text-sm font-medium text-blue-900">This Month</h3>
-                    <p className="text-2xl font-bold text-blue-900">₹{earnings.thisMonthEarnings.toLocaleString()}</p>
-                    <p className="text-xs text-blue-700">Current month</p>
-                  </div>
-
-                  <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-100">
-                    <h3 className="text-sm font-medium text-yellow-900">Pending Payouts</h3>
-                    <p className="text-2xl font-bold text-yellow-900">₹{earnings.pendingPayouts.toLocaleString()}</p>
-                    <p className="text-xs text-yellow-700">Processing</p>
-                  </div>
-
-                  <div className="bg-purple-50 p-6 rounded-lg border border-purple-100">
-                    <h3 className="text-sm font-medium text-purple-900">Completed Payouts</h3>
-                    <p className="text-2xl font-bold text-purple-900">₹{earnings.completedPayouts.toLocaleString()}</p>
-                    <p className="text-xs text-purple-700">Received</p>
-                  </div>
+              <div className="text-right">
+                <div className="flex items-center gap-2 text-sm">
+                  <span>Rating: {review.rating || 0}⭐</span>
                 </div>
-                
-                <div className="bg-white border rounded-lg p-6">
-                  <h3 className="font-semibold mb-4">Monthly Breakdown</h3>
-                  <div className="space-y-3">
-                    {earnings.monthlyBreakdown.map((month, idx) => (
-                      <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                        <span className="font-medium">{month.month}</span>
-                        <span className="font-bold">₹{month.earnings.toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <span className={`inline-block mt-1 px-2 py-1 text-xs rounded-full ${
+                  review.verificationStatus === 'approved' ? 'bg-green-100 text-green-800' :
+                  review.verificationStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                  'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {review.verificationStatus || 'pending'}
+                </span>
+              </div>
+            </div>
+            
+            <p className="text-gray-700 mb-4">{review.comment || review.reviewText || 'No comment'}</p>
+            
+            {review.rejectionReason && (
+              <div className="bg-red-50 p-3 rounded text-sm text-red-800 mb-4">
+                <span className="font-medium">Admin Feedback:</span> {review.rejectionReason}
               </div>
             )}
             
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <span>{new Date(review.createdAt).toLocaleDateString()}</span>
+              <span>👍 {review.helpfulVotes || 0} found helpful</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+{/* Earnings Tab */}
+{activeTab === 'earnings' && (
+  <div className="space-y-8">
+    <h2 className="text-xl font-semibold text-gray-900">Earnings Overview</h2>
+    
+    {earnings ? (
+      <>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="bg-green-50 p-6 rounded-lg border border-green-100">
+            <h3 className="text-sm font-medium text-green-900">Total Earnings</h3>
+            <p className="text-2xl font-bold text-green-900">₹{(earnings.totalEarnings || 0).toLocaleString()}</p>
+            <p className="text-xs text-green-700">All time</p>
+          </div>
+
+          <div className="bg-blue-50 p-6 rounded-lg border border-blue-100">
+            <h3 className="text-sm font-medium text-blue-900">This Month</h3>
+            <p className="text-2xl font-bold text-blue-900">₹{(earnings.thisMonthEarnings || 0).toLocaleString()}</p>
+            <p className="text-xs text-blue-700">Current month</p>
+          </div>
+
+          <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-100">
+            <h3 className="text-sm font-medium text-yellow-900">Pending Payouts</h3>
+            <p className="text-2xl font-bold text-yellow-900">₹{(earnings.pendingPayouts || 0).toLocaleString()}</p>
+            <p className="text-xs text-yellow-700">Processing</p>
+          </div>
+
+          <div className="bg-purple-50 p-6 rounded-lg border border-purple-100">
+            <h3 className="text-sm font-medium text-purple-900">Completed Payouts</h3>
+            <p className="text-2xl font-bold text-purple-900">₹{(earnings.completedPayouts || 0).toLocaleString()}</p>
+            <p className="text-xs text-purple-700">Received</p>
+          </div>
+        </div>
+        
+        <div className="bg-white border rounded-lg p-6">
+          <h3 className="font-semibold mb-4">Monthly Breakdown</h3>
+          {earnings.monthlyBreakdown && earnings.monthlyBreakdown.length > 0 ? (
+            <div className="space-y-3">
+              {earnings.monthlyBreakdown.map((month, idx) => (
+                <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                  <span className="font-medium">
+                    {new Date(month.month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <span className="font-bold">₹{(month.amount || 0).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-600 text-center py-4">No earnings data available yet</p>
+          )}
+        </div>
+        
+        {/* Payment Information */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-blue-900 mb-3">Payment Information</h3>
+          <div className="space-y-2 text-sm text-blue-800">
+            <p>• Payments are processed monthly on the 5th of each month</p>
+            <p>• Minimum payout amount: ₹1,000</p>
+            <p>• Payment method: Direct bank transfer</p>
+            <p>• Processing time: 3-5 business days</p>
+          </div>
+        </div>
+      </>
+    ) : (
+      <div className="bg-white border rounded-lg p-12 text-center">
+        <p className="text-gray-600 text-lg mb-2">Loading earnings data...</p>
+        <p className="text-sm text-gray-500">Please wait while we fetch your earnings information</p>
+      </div>
+    )}
+  </div>
+)}
             {/* Settings Tab */}
             {activeTab === 'settings' && (
               <div className="space-y-8">
@@ -1165,7 +1189,9 @@ const CourseForm = ({ mode, course, onCancel, onSuccess, setError, isVerified })
     tags: course?.tags?.join(', ') || '',
     syllabusFile: null,
     existingSyllabusFile: course?.syllabusFile || null,
-    faculty: course?.faculty || [{ name: '', qualification: '', experience: '', subject: '' }]
+    faculty: course?.faculty || [{ name: '', qualification: '', experience: '', subject: '' }],
+    // Add schedule data to formData
+    schedule: course?.schedule || []
   });
   
   const [loading, setLoading] = useState(false);
@@ -1284,6 +1310,11 @@ const CourseForm = ({ mode, course, onCancel, onSuccess, setError, isVerified })
     }
   };
 
+  // Handle schedule changes from CourseScheduleComponent
+  const handleScheduleChange = (scheduleData) => {
+    setFormData({ ...formData, schedule: scheduleData });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -1329,6 +1360,8 @@ const CourseForm = ({ mode, course, onCancel, onSuccess, setError, isVerified })
       courseData.append('isPublished', isVerified ? formData.isPublished : false);
       courseData.append('tags', JSON.stringify(tags));
       courseData.append('faculty', JSON.stringify(formData.faculty));
+      // Add schedule data to the form submission
+      courseData.append('schedule', JSON.stringify(formData.schedule));
       
       if (formData.syllabusFile) {
         courseData.append('syllabusFile', formData.syllabusFile);
@@ -1576,6 +1609,18 @@ const CourseForm = ({ mode, course, onCancel, onSuccess, setError, isVerified })
               ))}
             </div>
           </div>
+        </div>
+
+        {/* Course Schedule Section - NEW */}
+        <div className="bg-gray-50 p-6 rounded-lg">
+          <h3 className="text-lg font-medium mb-4 text-gray-900">Detialed Course Schedule</h3>
+          <CourseScheduleComponent
+            schedule={formData.schedule}
+            onScheduleChange={handleScheduleChange}
+            startDate={formData.startDate}
+            endDate={formData.endDate}
+            courseType={formData.courseType}
+          />
         </div>
 
         {/* Faculty Information */}
