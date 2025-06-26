@@ -39,13 +39,14 @@ const CourseScheduleCalendar = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Updated event types to match backend enum values
   const eventTypes = [
     { value: 'lecture', label: 'Lecture', color: '#3B82F6' },
-    { value: 'lab', label: 'Lab/Practical', color: '#10B981' },
-    { value: 'tutorial', label: 'Tutorial', color: '#F59E0B' },
-    { value: 'exam', label: 'Exam/Test', color: '#EF4444' },
-    { value: 'assignment', label: 'Assignment', color: '#8B5CF6' },
-    { value: 'break', label: 'Break', color: '#6B7280' }
+    { value: 'test', label: 'Test/Exam', color: '#EF4444' },
+    { value: 'doubt-clearing', label: 'Doubt Clearing', color: '#10B981' },
+    { value: 'discussion', label: 'Discussion', color: '#F59E0B' },
+    { value: 'workshop', label: 'Workshop', color: '#8B5CF6' },
+    { value: 'assignment', label: 'Assignment', color: '#6B7280' }
   ];
 
   const daysOfWeek = isMobileView 
@@ -84,9 +85,12 @@ const CourseScheduleCalendar = ({
   };
 
   const formatDate = (date) => {
-    if (!date) return '';
-    return date.toISOString().split('T')[0];
-  };
+  if (!date) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
   const getEventsForDate = (date) => {
     if (!date) return [];
@@ -103,36 +107,11 @@ const CourseScheduleCalendar = ({
   };
 
   const handleDateClick = (date) => {
-    if (!date) return;
-    
-    if (readOnly) {
-      const dateStr = formatDate(date);
-      const dayEvents = schedule.filter(event => event.date === dateStr);
-      if (dayEvents.length > 0 && onEventClick) {
-        if (dayEvents.length === 1) {
-          onEventClick(dayEvents[0]);
-        } else {
-          onEventClick(dayEvents[0]);
-        }
-      }
+    if (!date || readOnly) return;
+    if (!isDateInRange(date)) {
+      alert('Please select a date within the course duration');
       return;
     }
-    
-    if (startDate && endDate) {
-      const clickedDate = new Date(date);
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
-      clickedDate.setHours(0, 0, 0, 0);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      
-      if (clickedDate < start || clickedDate > end) {
-        alert('Please select a date within the course duration');
-        return;
-      }
-    }
-    
     setSelectedDate(date);
     setSelectedEvent(null);
     setEventForm({
@@ -144,24 +123,31 @@ const CourseScheduleCalendar = ({
       faculty: '',
       description: '',
       isRecurring: false,
-      recurringDays: [],
-      color: '#3B82F6'
+      recurringDays: []
     });
     setShowEventModal(true);
   };
 
-  const handleEventClick = (event, date) => {
-    if (readOnly) {
-      if (onEventClick) {
-        onEventClick(event);
-      }
+  const handleEventClick = (event, e) => {
+    e.stopPropagation();
+    
+    if (onEventClick) {
+      onEventClick(event);
       return;
     }
     
-    setSelectedDate(date);
+    if (readOnly) return;
+    
     setSelectedEvent(event);
+    setSelectedDate(new Date(event.date));
     setEventForm({
-      ...event,
+      title: event.title || '',
+      type: event.type || 'lecture',
+      startTime: event.startTime || '09:00',
+      endTime: event.endTime || '10:00',
+      subject: event.subject || '',
+      faculty: event.faculty || '',
+      description: event.description || '',
       isRecurring: false,
       recurringDays: []
     });
@@ -295,80 +281,50 @@ const CourseScheduleCalendar = ({
         <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {getDaysInMonth(currentMonth).map((date, index) => {
             const events = date ? getEventsForDate(date) : [];
-            const inRange = date ? isDateInRange(date) : false;
-            const isToday = date && new Date().toDateString() === date.toDateString();
+            const inRange = date ? isDateInRange(date) : true;
+            const isToday = date && date.toDateString() === new Date().toDateString();
             
             return (
               <div
                 key={index}
+                onClick={() => handleDateClick(date)}
                 className={`
-                  min-h-[60px] sm:min-h-[100px] 
-                  border rounded-md sm:rounded-lg 
-                  p-1 sm:p-2 
-                  relative
-                  ${date 
-                    ? inRange
-                      ? readOnly 
-                        ? 'cursor-pointer hover:bg-gray-50'
-                        : 'cursor-pointer hover:bg-blue-50'
-                      : 'bg-gray-100 cursor-not-allowed'
-                    : ''
-                  }
-                  ${isToday ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
+                  min-h-[60px] sm:min-h-[80px] md:min-h-[100px] p-1 sm:p-2 border rounded-lg
+                  ${!date ? 'invisible' : ''}
+                  ${isToday ? 'bg-blue-50 border-blue-500' : 'border-gray-200'}
+                  ${inRange ? 'hover:bg-gray-50 cursor-pointer' : 'bg-gray-100 cursor-not-allowed opacity-50'}
+                  ${!readOnly && inRange ? 'hover:border-gray-300' : ''}
+                  transition-all
                 `}
-                onClick={() => date && inRange && handleDateClick(date)}
               >
                 {date && (
-                  <div className="h-full flex flex-col">
-                    <div className={`text-xs sm:text-sm font-medium ${isToday ? 'text-blue-600' : 'text-gray-700'}`}>
+                  <>
+                    <div className={`text-xs sm:text-sm font-medium ${isToday ? 'text-blue-600' : 'text-gray-900'}`}>
                       {date.getDate()}
                     </div>
-                    <div className="flex-1 overflow-hidden mt-1">
-                      {/* Mobile view - show dots for events */}
-                      {isMobileView ? (
-                        <div className="flex gap-1 flex-wrap">
-                          {events.slice(0, 3).map((event, idx) => (
-                            <div
-                              key={idx}
-                              className="w-2 h-2 rounded-full"
-                              style={{ backgroundColor: event.color }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEventClick(event, date);
-                              }}
-                            />
-                          ))}
-                          {events.length > 3 && (
-                            <div className="text-xs text-gray-500">+{events.length - 3}</div>
-                          )}
+                    <div className="mt-1 space-y-1">
+                      {events.slice(0, isMobileView ? 1 : 3).map((event, idx) => (
+                        <div
+                          key={idx}
+                          onClick={(e) => handleEventClick(event, e)}
+                          className="text-[10px] sm:text-xs p-0.5 sm:p-1 rounded cursor-pointer hover:opacity-80 truncate"
+                          style={{ 
+                            backgroundColor: event.color || eventTypes.find(t => t.value === event.type)?.color || '#3B82F6',
+                            color: 'white'
+                          }}
+                          title={event.title}
+                        >
+                          <span className="hidden sm:inline">{event.title}</span>
+                          <span className="sm:hidden">{event.startTime}</span>
                         </div>
-                      ) : (
-                        /* Desktop view - show event titles */
-                        <>
-                          {events.slice(0, 2).map((event, idx) => (
-                            <div
-                              key={idx}
-                              className={`text-xs p-1 rounded truncate mb-1 ${
-                                readOnly ? 'hover:bg-opacity-80' : 'hover:bg-opacity-80 cursor-pointer'
-                              }`}
-                              style={{ backgroundColor: event.color, color: 'white' }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEventClick(event, date);
-                              }}
-                            >
-                              {event.title}
-                            </div>
-                          ))}
-                          {events.length > 2 && (
-                            <div className="text-xs text-gray-500">
-                              +{events.length - 2} more
-                            </div>
-                          )}
-                        </>
+                      ))}
+                      {events.length > (isMobileView ? 1 : 3) && (
+                        <div className="text-[10px] sm:text-xs text-gray-500 font-medium">
+                          +{events.length - (isMobileView ? 1 : 3)} more
+                        </div>
                       )}
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
             );
@@ -378,37 +334,36 @@ const CourseScheduleCalendar = ({
 
       {/* Event Modal */}
       {showEventModal && !readOnly && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b px-4 sm:px-6 py-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {selectedEvent ? 'Edit Session' : 'Add New Session'}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">
+                {selectedEvent ? 'Edit Session' : 'Add Session'}
               </h3>
               <button
-                type="button"
                 onClick={() => setShowEventModal(false)}
-                className="p-1 hover:bg-gray-100 rounded"
+                className="p-1 hover:bg-gray-100 rounded-full"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-4 sm:p-6 space-y-4">
-              {/* Session Title */}
+            <div className="p-4 space-y-4">
+              {/* Title */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Session Title
+                  Session Title *
                 </label>
                 <input
                   type="text"
                   value={eventForm.title}
                   onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter session title"
+                  placeholder="e.g., Introduction to React"
                 />
               </div>
 
-              {/* Session Type */}
+              {/* Type */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Session Type
@@ -419,7 +374,9 @@ const CourseScheduleCalendar = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                 >
                   {eventTypes.map(type => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -460,7 +417,7 @@ const CourseScheduleCalendar = ({
                   value={eventForm.subject}
                   onChange={(e) => setEventForm({ ...eventForm, subject: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., Mathematics"
+                  placeholder="e.g., Computer Science"
                 />
               </div>
 
@@ -504,40 +461,40 @@ const CourseScheduleCalendar = ({
                         isRecurring: e.target.checked,
                         recurringDays: []
                       })}
-                      className="rounded"
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded"
                     />
                     <span className="text-sm font-medium text-gray-700">
-                      Repeat this session weekly
+                      Repeat weekly
                     </span>
                   </label>
 
                   {eventForm.isRecurring && (
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Repeat on
-                      </label>
-                      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                    <div className="mt-3 space-y-2">
+                      <span className="text-sm text-gray-600">Select days:</span>
+                      <div className="flex flex-wrap gap-2">
                         {fullDaysOfWeek.map((day, index) => (
-                          <label key={day} className="flex items-center gap-1">
+                          <label
+                            key={day}
+                            className={`
+                              px-3 py-1 rounded-lg cursor-pointer text-sm
+                              ${eventForm.recurringDays.includes(index)
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }
+                            `}
+                          >
                             <input
                               type="checkbox"
+                              className="sr-only"
                               checked={eventForm.recurringDays.includes(index)}
                               onChange={(e) => {
-                                if (e.target.checked) {
-                                  setEventForm({
-                                    ...eventForm,
-                                    recurringDays: [...eventForm.recurringDays, index]
-                                  });
-                                } else {
-                                  setEventForm({
-                                    ...eventForm,
-                                    recurringDays: eventForm.recurringDays.filter(d => d !== index)
-                                  });
-                                }
+                                const days = e.target.checked
+                                  ? [...eventForm.recurringDays, index]
+                                  : eventForm.recurringDays.filter(d => d !== index);
+                                setEventForm({ ...eventForm, recurringDays: days });
                               }}
-                              className="rounded"
                             />
-                            <span className="text-sm">{isMobileView ? day.slice(0, 3) : day}</span>
+                            {day.slice(0, 3)}
                           </label>
                         ))}
                       </div>
@@ -547,30 +504,31 @@ const CourseScheduleCalendar = ({
               )}
             </div>
 
-            <div className="sticky bottom-0 bg-white border-t px-4 sm:px-6 py-4 flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={handleEventSubmit}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition order-1 sm:order-1"
-              >
-                {selectedEvent ? 'Update Session' : 'Add Session'}
-              </button>
-              {selectedEvent && (
+            <div className="flex items-center justify-between p-4 border-t bg-gray-50">
+              <div>
+                {selectedEvent && (
+                  <button
+                    onClick={handleDeleteEvent}
+                    className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
                 <button
-                  type="button"
-                  onClick={handleDeleteEvent}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition order-3 sm:order-2"
+                  onClick={() => setShowEventModal(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg transition"
                 >
-                  Delete
+                  Cancel
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowEventModal(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition order-2 sm:order-3"
-              >
-                Cancel
-              </button>
+                <button
+                  onClick={handleEventSubmit}
+                  className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition"
+                >
+                  {selectedEvent ? 'Update' : 'Add'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

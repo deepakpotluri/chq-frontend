@@ -70,6 +70,7 @@ const LoginForm = () => {
       
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('role', response.data.role);
+      localStorage.setItem('userId', response.data.userId); 
       
       if (requiredRole && response.data.role !== requiredRole) {
         setError(`You need to be logged in as a ${requiredRole} to access that page`);

@@ -16,6 +16,7 @@ import AdminDashboard from '../src/pages/AdminDashboard';
 // Course Pages
 import CoursesPage from '../src/pages/CoursePage';
 import CourseDetailPage from '../src/pages/CourseDetailPage';
+import ViewInstitutionProfile from '../src/pages/ViewInstitutionProfile';
 
 // ScrollToTop Component
 const ScrollToTop = () => {
@@ -90,6 +91,7 @@ const App = () => {
             <Route path="/courses" element={<CoursesPage />} />
             <Route path="/courses/:id" element={<CourseDetailPage />} />
             <Route path="/about" element={<AboutPage />} />
+             <Route path="/institutions/:id" element={<ViewInstitutionProfile />} />
             
             {/* Protected Routes */}
             <Route 

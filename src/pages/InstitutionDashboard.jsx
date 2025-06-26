@@ -36,10 +36,10 @@ const InstitutionDashboard = () => {
       // Fetch institution profile
       const profileResponse = await api.get('/api/institution/profile');
       if (profileResponse.data.success) {
-        setInstitutionData(profileResponse.data);
+       setInstitutionData(profileResponse.data.data);
         
         // Check if institution is verified
-        if (!profileResponse.data.isVerified) {
+        if (!profileResponse.data.data.isVerified) {
           setNotifications([{
             id: 'not-verified',
             type: 'warning',
@@ -58,9 +58,26 @@ const InstitutionDashboard = () => {
       // Fetch analytics
       try {
         const analyticsResponse = await api.get('/api/institution/analytics');
-        if (analyticsResponse.data.success) {
-          setAnalytics(analyticsResponse.data);
-        }
+if (analyticsResponse.data.success && analyticsResponse.data.data) {
+  const analyticsData = analyticsResponse.data.data;
+  
+  // Calculate average rating from courses
+  const coursesData = coursesResponse.data.data || [];
+  const coursesWithRating = coursesData.filter(c => c.averageRating?.overall > 0);
+  const avgRating = coursesWithRating.length > 0
+    ? (coursesWithRating.reduce((sum, c) => sum + (c.averageRating?.overall || 0), 0) / coursesWithRating.length).toFixed(1)
+    : 0;
+  
+  setAnalytics({
+    totalViews: analyticsData?.overview?.totalViews || 0,
+    totalLeads: 0,
+    totalEnrollments: analyticsData?.overview?.totalEnrollments || 0,
+    conversionRate: 0,
+    averageRating: avgRating,
+    monthlyGrowth: 0,
+    topPerformingCourse: analyticsData?.topCourses?.[0]?.title || 'No courses available'
+  });
+}
       } catch (analyticsError) {
         console.error('Analytics fetch failed:', analyticsError);
         setAnalytics({
@@ -78,7 +95,7 @@ const InstitutionDashboard = () => {
       try {
         const enrollmentsResponse = await api.get('/api/institution/enrollments');
         if (enrollmentsResponse.data.success) {
-          setEnrollments(enrollmentsResponse.data.enrollments || []);
+          setEnrollments(enrollmentsResponse.data.data || []);
         }
       } catch (enrollmentsError) {
         console.error('Enrollments fetch failed:', enrollmentsError);
@@ -89,7 +106,7 @@ const InstitutionDashboard = () => {
       try {
         const reviewsResponse = await api.get('/api/institution/reviews');
         if (reviewsResponse.data.success) {
-          setReviews(reviewsResponse.data.reviews || []);
+          setReviews(reviewsResponse.data.data || []);
         }
       } catch (reviewsError) {
         console.error('Reviews fetch failed:', reviewsError);
@@ -541,8 +558,8 @@ const InstitutionDashboard = () => {
                         {enrollments.slice(0, 5).map((enrollment, idx) => (
                           <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
                             <div>
-                              <p className="font-medium">{enrollment.student?.name || 'Student'}</p>
-                              <p className="text-sm text-gray-600">{enrollment.courseTitle}</p>
+                              <p className="font-medium">{enrollment.user?.name || 'Student'}</p>
+                              <p className="text-sm text-gray-600">{enrollment.courseName}</p>
                             </div>
                             <span className="text-sm text-gray-500">
                               {new Date(enrollment.enrolledAt).toLocaleDateString()}
@@ -563,8 +580,8 @@ const InstitutionDashboard = () => {
         <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
           <div className="flex-1">
             <p className="font-medium line-clamp-1">{review.courseTitle || review.courseName || 'Course'}</p>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-yellow-500">{review.rating || 0}⭐</span>
+             <div className="flex items-center gap-2 text-sm">
+              <span className="text-yellow-500">{((review.courseRating + review.instituteRating + review.facultyRating) / 3).toFixed(1) || 0}⭐</span>
               <span className={`px-2 py-0.5 text-xs rounded-full ${
                 review.verificationStatus === 'approved' ? 'bg-green-100 text-green-800' :
                 review.verificationStatus === 'rejected' ? 'bg-red-100 text-red-800' :
@@ -820,9 +837,11 @@ const InstitutionDashboard = () => {
                 <h3 className="font-semibold">{review.courseTitle || review.courseName || 'Course'}</h3>
                 <p className="text-sm text-gray-600">By: {review.student?.name || 'Anonymous'}</p>
               </div>
-              <div className="text-right">
-                <div className="flex items-center gap-2 text-sm">
-                  <span>Rating: {review.rating || 0}⭐</span>
+               <div className="text-right">
+                <div className="flex flex-col gap-1 text-sm">
+                  <span>Course: {review.courseRating || 0}⭐</span>
+                  <span>Institute: {review.instituteRating || 0}⭐</span>
+                  <span>Faculty: {review.facultyRating || 0}⭐</span>
                 </div>
                 <span className={`inline-block mt-1 px-2 py-1 text-xs rounded-full ${
                   review.verificationStatus === 'approved' ? 'bg-green-100 text-green-800' :

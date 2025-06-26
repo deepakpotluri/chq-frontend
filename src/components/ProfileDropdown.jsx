@@ -1,4 +1,4 @@
-// src/components/ProfileDropdown.jsx - Updated with React Router Link
+// src/components/ProfileDropdown.jsx - Updated with institution profile link
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -84,6 +84,16 @@ const ProfileDropdown = ({ onLogout }) => {
     }
   };
 
+  // Get display name based on role
+  const getDisplayName = () => {
+    if (!userData) return 'User';
+    
+    if (userData.role === 'institution' && userData.institutionProfile?.institutionName) {
+      return userData.institutionProfile.institutionName;
+    }
+    return userData.name || 'User';
+  };
+
   if (loading) {
     return (
       <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse flex items-center justify-center">
@@ -96,7 +106,7 @@ const ProfileDropdown = ({ onLogout }) => {
     return null; // Don't render anything if no user data
   }
 
-  const displayName = userData.institutionName || userData.name || 'User';
+  const displayName = getDisplayName();
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -131,9 +141,16 @@ const ProfileDropdown = ({ onLogout }) => {
             <div className="px-4 py-2 border-b border-gray-100">
               <p className="text-sm font-medium text-gray-900">{displayName}</p>
               <p className="text-xs text-gray-500 truncate">{userData.email}</p>
-              <p className="text-xs font-medium text-gray-700 mt-1 bg-gray-100 inline-block px-2 py-0.5 rounded capitalize">
-                {userData.role}
-              </p>
+              <div className="flex items-center mt-1">
+                <p className="text-xs font-medium text-gray-700 bg-gray-100 inline-block px-2 py-0.5 rounded capitalize">
+                  {userData.role}
+                </p>
+                {userData.role === 'institution' && userData.isVerified && (
+                  <p className="text-xs font-medium text-green-700 bg-green-100 inline-block px-2 py-0.5 rounded capitalize ml-2">
+                    Verified
+                  </p>
+                )}
+              </div>
             </div>
             
             <Link
@@ -143,13 +160,26 @@ const ProfileDropdown = ({ onLogout }) => {
             >
               Dashboard
             </Link>
-            <Link
+            
+            {/* Institution Profile Link - Only for institutions */}
+            {userData.role === 'institution' && (
+              <Link
+                to={`/institutions/${userData.id}`}
+                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                onClick={() => setIsOpen(false)}
+              >
+                View Profile
+              </Link>
+            )}
+            
+            {/* <Link
               to="/profile-settings"
               className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
               onClick={() => setIsOpen(false)}
             >
               Profile Settings
-            </Link>
+            </Link> */}
+            
             <button
               onClick={handleLogout}
               className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
