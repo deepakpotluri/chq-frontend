@@ -17,6 +17,10 @@ const AdminDashboard = () => {
   const [loginActivity, setLoginActivity] = useState([]);
   const [systemOverview, setSystemOverview] = useState({});
   const [notifications, setNotifications] = useState([]);
+
+const [allReviews, setAllReviews] = useState([]);
+const [reviewFilter, setReviewFilter] = useState({ status: 'pending' });
+const [reviewPagination, setReviewPagination] = useState({ page: 1, totalPages: 1 });
   
   // Pagination states
   const [userPagination, setUserPagination] = useState({ page: 1, totalPages: 1 });
@@ -41,12 +45,12 @@ const AdminDashboard = () => {
   }, []);
   
   useEffect(() => {
-    if (activeTab === 'users') fetchUsers();
-    if (activeTab === 'institutions') fetchInstitutions();
-    if (activeTab === 'courses') fetchCourses();
-    if (activeTab === 'reviews') fetchPendingReviews();
-    if (activeTab === 'activity') fetchLoginActivity();
-  }, [activeTab, userPagination.page, institutionPagination.page, coursePagination.page, userFilter, institutionFilter, courseFilter]);
+  if (activeTab === 'users') fetchUsers();
+  if (activeTab === 'institutions') fetchInstitutions();
+  if (activeTab === 'courses') fetchCourses();
+  if (activeTab === 'reviews') fetchAllReviews(); 
+  if (activeTab === 'activity') fetchLoginActivity();
+}, [activeTab, userPagination.page, institutionPagination.page, coursePagination.page, reviewPagination.page, userFilter, institutionFilter, courseFilter, reviewFilter]);
   
   const fetchAdminData = async () => {
     try {
@@ -161,6 +165,27 @@ const AdminDashboard = () => {
       setPendingReviews([]);
     }
   };
+
+  const fetchAllReviews = async () => {
+  try {
+    const params = new URLSearchParams({
+      page: reviewPagination.page,
+      limit: 20,
+      status: reviewFilter.status
+    });
+    
+    const response = await api.get(`/api/admin/reviews/all?${params}`);
+    setAllReviews(response.data.data);
+    setReviewPagination({
+      ...reviewPagination,
+      totalPages: response.data.pagination.pages
+    });
+  } catch (err) {
+    console.error('Error fetching reviews:', err);
+    setError('Failed to fetch reviews');
+  }
+};
+
   
   const fetchLoginActivity = async () => {
     try {
@@ -202,28 +227,28 @@ const AdminDashboard = () => {
     }
   };
   
-  const handleVerifyReview = async (courseId, reviewId, action, rejectionReason = '') => {
-    try {
-      // Handle archive as a special case of reject
-      if (action === 'archive') {
-        await api.put(`/api/admin/reviews/${courseId}/${reviewId}/verify`, { 
-          action: 'reject', 
-          rejectionReason: 'Archived by admin'
-        });
-        alert('Review archived successfully');
-      } else {
-        await api.put(`/api/admin/reviews/${courseId}/${reviewId}/verify`, { 
-          action, 
-          rejectionReason 
-        });
-        alert(`Review ${action}ed successfully`);
-      }
-      fetchPendingReviews();
-      fetchAdminData(); // Refresh stats
-    } catch (err) {
-      alert('Failed to verify review');
+ const handleVerifyReview = async (courseId, reviewId, action, rejectionReason = '') => {
+  try {
+    // Handle archive as a special case of reject
+    if (action === 'archive') {
+      await api.put(`/api/admin/reviews/${courseId}/${reviewId}/verify`, { 
+        action: 'reject', 
+        rejectionReason: 'Archived by admin'
+      });
+      alert('Review archived successfully');
+    } else {
+      await api.put(`/api/admin/reviews/${courseId}/${reviewId}/verify`, { 
+        action, 
+        rejectionReason 
+      });
+      alert(`Review ${action}ed successfully`);
     }
-  };
+    fetchAllReviews(); // Changed from fetchPendingReviews
+    fetchAdminData(); // Refresh stats
+  } catch (err) {
+    alert('Failed to verify review');
+  }
+};
   
   const handleUserStatusToggle = async (userId, isActive) => {
     try {
@@ -480,9 +505,7 @@ const AdminDashboard = () => {
                       <option value="true">Verified</option>
                       <option value="false">Pending Verification</option>
                     </select>
-                    <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                      + Add Institution
-                    </button>
+                    
                   </div>
                 </div>
                 
@@ -864,91 +887,216 @@ const AdminDashboard = () => {
             )}
             
             {/* Reviews Tab */}
-            {activeTab === 'reviews' && (
-              <div>
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-semibold">Pending Review Verification</h2>
-                  <div className="flex gap-4">
-                    <button
-                      onClick={() => handleBulkAction('approve', 'reviews')}
-                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-                    >
-                      Bulk Approve
-                    </button>
-                    <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
-                      {pendingReviews.length} reviews pending
-                    </span>
-                  </div>
-                </div>
-                
-                {pendingReviews.length === 0 ? (
-                  <div className="text-center py-12 bg-gray-50 rounded-lg">
-                    <div className="text-4xl mb-4">✅</div>
-                    <p className="text-gray-600">No pending reviews to verify</p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {pendingReviews.map((review) => (
-                      <div key={`${review.courseId}-${review.reviewId}`} className="bg-white border rounded-lg p-6 hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h3 className="font-semibold text-lg">{review.courseTitle}</h3>
-                            <p className="text-sm text-gray-600">
-                              By: {review.user?.name} ({review.user?.email})
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Submitted: {new Date(review.createdAt).toLocaleString()}
-                            </p>
-                          </div>
-                          <div className="flex gap-4">
-                            <div className="text-center">
-                              <div className="text-sm text-gray-600">Course</div>
-                              <div className="font-semibold text-lg">{review.courseRating}⭐</div>
-                            </div>
-                            <div className="text-center">
-                              <div className="text-sm text-gray-600">Institute</div>
-                              <div className="font-semibold text-lg">{review.instituteRating}⭐</div>
-                            </div>
-                            <div className="text-center">
-                              <div className="text-sm text-gray-600">Faculty</div>
-                              <div className="font-semibold text-lg">{review.facultyRating}⭐</div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-gray-50 p-4 rounded mb-4">
-                          <p className="text-gray-700">{review.reviewText}</p>
-                        </div>
-                        
-                        <div className="flex justify-end gap-3">
-                          <button
-                            onClick={() => handleVerifyReview(review.courseId, review.reviewId, 'approve')}
-                            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                          >
-                            ✓ Approve
-                          </button>
-                          <button
-                            onClick={() => {
-                              const reason = prompt('Rejection reason:');
-                              if (reason) handleVerifyReview(review.courseId, review.reviewId, 'reject', reason);
-                            }}
-                            className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors"
-                          >
-                            ✗ Reject
-                          </button>
-                          <button
-                            onClick={() => handleVerifyReview(review.courseId, review.reviewId, 'archive')}
-                            className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition-colors"
-                          >
-                            📁 Archive
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+{activeTab === 'reviews' && (
+  <div>
+    <div className="flex justify-between items-center mb-6">
+      <h2 className="text-xl font-semibold">Review Management</h2>
+      <div className="flex gap-4">
+        <select
+          value={reviewFilter.status}
+          onChange={(e) => {
+            setReviewFilter({ status: e.target.value });
+            setReviewPagination({ ...reviewPagination, page: 1 });
+          }}
+          className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All Reviews</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="archived">Archived</option>
+        </select>
+        
+        {reviewFilter.status === 'pending' && allReviews.length > 0 && (
+          <button
+            onClick={() => handleBulkAction('approve', 'reviews')}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+          >
+            Bulk Approve
+          </button>
+        )}
+        
+        <span className={`px-3 py-2 pt-2 rounded-full text-sm font-medium ${
+          reviewFilter.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+          reviewFilter.status === 'approved' ? 'bg-green-100 text-green-800' :
+          reviewFilter.status === 'rejected' ? 'bg-red-100 text-red-800' :
+          'bg-gray-100 text-gray-800'
+        }`}>
+          {allReviews.length} {reviewFilter.status || 'total'} reviews
+        </span>
+      </div>
+    </div>
+    
+    {allReviews.length === 0 ? (
+      <div className="text-center py-12 bg-gray-50 rounded-lg">
+        <div className="text-4xl mb-4">
+          {reviewFilter.status === 'pending' ? '✅' : '📝'}
+        </div>
+        <p className="text-gray-600">
+          {reviewFilter.status === 'pending' 
+            ? 'No pending reviews to verify' 
+            : `No ${reviewFilter.status || ''} reviews found`}
+        </p>
+      </div>
+    ) : (
+      <div className="space-y-6">
+        {allReviews.map((review) => (
+          <div key={`${review.courseId}-${review.reviewId}`} className="bg-white border rounded-lg p-6 hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg">{review.courseTitle}</h3>
+                <p className="text-sm text-gray-600">
+                  Institution: {review.institutionName}
+                </p>
+                <p className="text-sm text-gray-600">
+                  By: {review.user?.name} ({review.user?.email})
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Submitted: {new Date(review.createdAt).toLocaleString()}
+                </p>
+                {review.verifiedAt && (
+                  <p className="text-xs text-gray-500">
+                    Verified: {new Date(review.verifiedAt).toLocaleString()}
+                  </p>
                 )}
               </div>
-            )}
+              <div className="flex gap-4">
+                <div className="text-center">
+                  <div className="text-sm text-gray-600">Course</div>
+                  <div className="font-semibold text-lg">{review.courseRating}⭐</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-sm text-gray-600">Institute</div>
+                  <div className="font-semibold text-lg">{review.instituteRating}⭐</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-sm text-gray-600">Faculty</div>
+                  <div className="font-semibold text-lg">{review.facultyRating}⭐</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-gray-700 whitespace-pre-wrap">{review.reviewText}</p>
+              {review.rejectionReason && (
+                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+                  <p className="text-sm text-red-700">
+                    <strong>Rejection Reason:</strong> {review.rejectionReason}
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                review.verificationStatus === 'approved' ? 'bg-green-100 text-green-700' :
+                review.verificationStatus === 'rejected' ? 'bg-red-100 text-red-700' :
+                review.verificationStatus === 'archived' ? 'bg-gray-100 text-gray-700' :
+                'bg-yellow-100 text-yellow-700'
+              }`}>
+                {review.verificationStatus || 'pending'}
+              </span>
+              
+              {review.verificationStatus === 'pending' && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleVerifyReview(review.courseId, review.reviewId, 'approve')}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => {
+                      const reason = prompt('Rejection reason:');
+                      if (reason) {
+                        handleVerifyReview(review.courseId, review.reviewId, 'reject', reason);
+                      }
+                    }}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    onClick={() => handleVerifyReview(review.courseId, review.reviewId, 'archive')}
+                    className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition"
+                  >
+                    Archive
+                  </button>
+                </div>
+              )}
+              
+              {review.verificationStatus === 'rejected' && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleVerifyReview(review.courseId, review.reviewId, 'approve')}
+                    className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => handleVerifyReview(review.courseId, review.reviewId, 'archive')}
+                    className="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700 transition"
+                  >
+                    Archive
+                  </button>
+                </div>
+              )}
+              
+              {(review.verificationStatus === 'approved' || review.verificationStatus === 'archived') && (
+                <div className="flex gap-2">
+                  {review.verificationStatus === 'approved' && (
+                    <button
+                      onClick={() => {
+                        const reason = prompt('Rejection reason:');
+                        if (reason) {
+                          handleVerifyReview(review.courseId, review.reviewId, 'reject', reason);
+                        }
+                      }}
+                      className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 transition"
+                    >
+                      Reject
+                    </button>
+                  )}
+                  {review.verificationStatus === 'archived' && (
+                    <button
+                      onClick={() => handleVerifyReview(review.courseId, review.reviewId, 'approve')}
+                      className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition"
+                    >
+                      Approve
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+    
+    {/* Pagination */}
+    {reviewPagination.totalPages > 1 && (
+      <div className="flex justify-center mt-6 gap-2">
+        <button
+          onClick={() => setReviewPagination({ ...reviewPagination, page: reviewPagination.page - 1 })}
+          disabled={reviewPagination.page === 1}
+          className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Previous
+        </button>
+        <span className="px-3 py-1">
+          Page {reviewPagination.page} of {reviewPagination.totalPages}
+        </span>
+        <button
+          onClick={() => setReviewPagination({ ...reviewPagination, page: reviewPagination.page + 1 })}
+          disabled={reviewPagination.page === reviewPagination.totalPages}
+          className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Next
+        </button>
+      </div>
+    )}
+  </div>
+)}
             
             {/* Activity Tab */}
             {activeTab === 'activity' && (
