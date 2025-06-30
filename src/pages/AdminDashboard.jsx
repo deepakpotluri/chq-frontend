@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 
 const AdminDashboard = () => {
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(null);
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Data states
+  // State for different sections
+  const [stats, setStats] = useState({});
   const [users, setUsers] = useState([]);
   const [institutions, setInstitutions] = useState([]);
   const [courses, setCourses] = useState([]);
   const [pendingReviews, setPendingReviews] = useState([]);
   const [loginActivity, setLoginActivity] = useState([]);
-  const [systemOverview, setSystemOverview] = useState(null);
+  const [systemOverview, setSystemOverview] = useState({});
   const [notifications, setNotifications] = useState([]);
   
   // Pagination states
@@ -28,6 +29,8 @@ const AdminDashboard = () => {
   const [courseFilter, setCourseFilter] = useState({ isPublished: '', status: '' });
   
   // Modal states
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
   const [showInstitutionModal, setShowInstitutionModal] = useState(false);
   const [selectedInstitution, setSelectedInstitution] = useState(null);
   const [showCourseModal, setShowCourseModal] = useState(false);
@@ -56,7 +59,7 @@ const AdminDashboard = () => {
       ]);
       
       setStats(statsResponse.data);
-      setSystemOverview(overviewResponse.data.overview);
+      setSystemOverview(overviewResponse.data.overview || {});
       
       // Create notifications based on pending items
       const newNotifications = [];
@@ -152,9 +155,10 @@ const AdminDashboard = () => {
   const fetchPendingReviews = async () => {
     try {
       const response = await api.get('/api/admin/reviews/pending');
-      setPendingReviews(response.data.data);
+      setPendingReviews(response.data.data || []);
     } catch (err) {
       console.error('Error fetching pending reviews:', err);
+      setPendingReviews([]);
     }
   };
   
@@ -200,12 +204,22 @@ const AdminDashboard = () => {
   
   const handleVerifyReview = async (courseId, reviewId, action, rejectionReason = '') => {
     try {
-      await api.put(`/api/admin/reviews/${courseId}/${reviewId}/verify`, { 
-        action, 
-        rejectionReason 
-      });
+      // Handle archive as a special case of reject
+      if (action === 'archive') {
+        await api.put(`/api/admin/reviews/${courseId}/${reviewId}/verify`, { 
+          action: 'reject', 
+          rejectionReason: 'Archived by admin'
+        });
+        alert('Review archived successfully');
+      } else {
+        await api.put(`/api/admin/reviews/${courseId}/${reviewId}/verify`, { 
+          action, 
+          rejectionReason 
+        });
+        alert(`Review ${action}ed successfully`);
+      }
       fetchPendingReviews();
-      alert(`Review ${action}ed successfully`);
+      fetchAdminData(); // Refresh stats
     } catch (err) {
       alert('Failed to verify review');
     }
@@ -323,137 +337,78 @@ const AdminDashboard = () => {
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                     activeTab === tab.id 
-                      ? 'text-blue-600 border-blue-600' 
-                      : 'text-gray-600 border-transparent hover:text-gray-900'
+                      ? 'border-blue-600 text-blue-600 bg-blue-50' 
+                      : 'border-transparent text-gray-700 hover:text-gray-900'
                   }`}
                 >
-                  <span className="flex items-center">
-                    {tab.icon} {tab.label} 
-                    {tab.count !== undefined && (
-                      <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
-                        tab.badge === 'danger' && tab.count > 0 
-                          ? 'bg-red-100 text-red-700' 
-                          : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {tab.count}
-                      </span>
-                    )}
-                  </span>
+                  <span className="mr-2">{tab.icon}</span>
+                  {tab.label}
+                  {tab.count !== undefined && (
+                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                      tab.badge === 'danger' && tab.count > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {tab.count}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
           </div>
           
+          {/* Tab Content */}
           <div className="p-6">
             {/* Overview Tab */}
-            {activeTab === 'overview' && stats && systemOverview && (
-              <div className="space-y-8">
-                {/* Key Metrics */}
-                <div>
-                  <h2 className="text-xl font-semibold mb-6">Platform Statistics</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-lg mb-2 text-blue-900">Total Aspirants</h3>
-                          <p className="text-3xl font-bold text-blue-900">{stats.aspirantCount}</p>
-                        </div>
-                        <div className="text-3xl">👥</div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-green-50 p-6 rounded-lg border border-green-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-lg mb-2 text-green-900">Verified Institutions</h3>
-                          <p className="text-3xl font-bold text-green-900">{stats.verifiedInstitutions}</p>
-                          <p className="text-sm text-orange-600 mt-1">{stats.pendingInstitutions} pending</p>
-                        </div>
-                        <div className="text-3xl">🏢</div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-purple-50 p-6 rounded-lg border border-purple-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-lg mb-2 text-purple-900">Published Courses</h3>
-                          <p className="text-3xl font-bold text-purple-900">{stats.publishedCourses}</p>
-                          <p className="text-sm text-gray-600 mt-1">of {stats.courseCount} total</p>
-                        </div>
-                        <div className="text-3xl">📚</div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-lg mb-2 text-yellow-900">Pending Reviews</h3>
-                          <p className="text-3xl font-bold text-yellow-900">{stats.pendingReviews}</p>
-                          <p className="text-sm text-yellow-600 mt-1">Awaiting verification</p>
-                        </div>
-                        <div className="text-3xl">⏳</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Revenue Overview */}
-                <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-lg border">
-                  <h3 className="text-xl font-semibold mb-4">Revenue Overview</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                      <p className="text-sm text-gray-600">Total Platform Revenue</p>
-                      <p className="text-2xl font-bold text-gray-900">₹{systemOverview.totalRevenue.toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Total Enrollments</p>
-                      <p className="text-2xl font-bold text-gray-900">{systemOverview.totalEnrollments}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Avg Revenue/Course</p>
-                      <p className="text-2xl font-bold text-gray-900">₹{parseFloat(systemOverview.averageRevenuePerCourse).toLocaleString()}</p>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Recent Activity */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-white border rounded-lg p-6">
-                    <h3 className="text-lg font-semibold mb-4">Recent Institutions</h3>
-                    <div className="space-y-3">
-                      {systemOverview.recentInstitutions.map(inst => (
-                        <div key={inst._id} className="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
-                          <div>
-                            <p className="font-medium">{inst.institutionName}</p>
-                            <p className="text-sm text-gray-600">{inst.email}</p>
-                          </div>
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            inst.isVerified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {inst.isVerified ? 'Verified' : 'Pending'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+            {activeTab === 'overview' && (
+              <div>
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg">
+                    <h3 className="text-sm font-medium opacity-90">Total Aspirants</h3>
+                    <p className="text-3xl font-bold mt-2">{stats.aspirantCount || 0}</p>
+                    <p className="text-sm opacity-75 mt-1">Active users</p>
                   </div>
                   
-                  <div className="bg-white border rounded-lg p-6">
-                    <h3 className="text-lg font-semibold mb-4">Recent Courses</h3>
-                    <div className="space-y-3">
-                      {systemOverview.recentCourses.map(course => (
-                        <div key={course._id} className="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
-                          <div>
-                            <p className="font-medium line-clamp-1">{course.title}</p>
-                            <p className="text-sm text-gray-600">{course.institution?.institutionName}</p>
-                          </div>
+                  <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg">
+                    <h3 className="text-sm font-medium opacity-90">Total Institutions</h3>
+                    <p className="text-3xl font-bold mt-2">{stats.institutionCount || 0}</p>
+                    <p className="text-sm opacity-75 mt-1">
+                      {stats.verifiedInstitutions || 0} verified
+                    </p>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg">
+                    <h3 className="text-sm font-medium opacity-90">Total Courses</h3>
+                    <p className="text-3xl font-bold mt-2">{stats.courseCount || 0}</p>
+                    <p className="text-sm opacity-75 mt-1">
+                      {stats.publishedCourses || 0} published
+                    </p>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-6 rounded-lg">
+                    <h3 className="text-sm font-medium opacity-90">Pending Reviews</h3>
+                    <p className="text-3xl font-bold mt-2">{stats.pendingReviews || 0}</p>
+                    <p className="text-sm opacity-75 mt-1">Awaiting moderation</p>
+                  </div>
+                </div>
+                
+                {/* Recent Courses */}
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-4">Recent Courses</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {courses.slice(0, 3).map(course => (
+                      <div key={course._id} className="border rounded-lg p-4">
+                        <h4 className="font-medium text-gray-900">{course.title}</h4>
+                        <p className="text-sm text-gray-600">{course.institution?.institutionName}</p>
+                        <div className="mt-2 flex justify-between items-center">
+                          <span className="text-sm font-semibold">₹{course.price}</span>
                           <span className={`px-2 py-1 text-xs rounded-full ${
                             course.isPublished ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                           }`}>
                             {course.isPublished ? 'Published' : 'Draft'}
                           </span>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 
@@ -519,18 +474,14 @@ const AdminDashboard = () => {
                         setInstitutionFilter({ ...institutionFilter, isVerified: e.target.value });
                         setInstitutionPagination({ ...institutionPagination, page: 1 });
                       }}
-                      className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
                     >
                       <option value="">All Institutions</option>
-                      <option value="true">Verified Only</option>
+                      <option value="true">Verified</option>
                       <option value="false">Pending Verification</option>
                     </select>
-                    
-                    <button
-                      onClick={() => handleBulkAction('verify', 'institutions')}
-                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-                    >
-                      Bulk Verify
+                    <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                      + Add Institution
                     </button>
                   </div>
                 </div>
@@ -549,10 +500,10 @@ const AdminDashboard = () => {
                           Courses
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
+                          Verification
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Last Login
+                          Status
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Actions
@@ -566,84 +517,58 @@ const AdminDashboard = () => {
                             <div>
                               <div className="text-sm font-medium text-gray-900">{inst.institutionName}</div>
                               <div className="text-sm text-gray-500">{inst.email}</div>
-                              <div className="text-xs text-gray-400">ID: {inst._id}</div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
-                            {inst.institutionType}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div>
-                              <p>{inst.courseCount} total</p>
-                              <p className="text-xs">{inst.publishedCourseCount} published</p>
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex flex-col gap-1">
-                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                inst.isVerified 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                {inst.isVerified ? 'Verified' : 'Pending'}
-                              </span>
-                              {!inst.isActive && (
-                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                                  Delisted
-                                </span>
-                              )}
-                            </div>
+                            <span className="capitalize">{inst.institutionType}</span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {inst.lastLogin ? new Date(inst.lastLogin).toLocaleDateString() : 'Never'}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {inst.totalCourses || 0}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              inst.isVerified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {inst.isVerified ? 'Verified' : 'Pending'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              inst.isActive !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {inst.isActive !== false ? 'Active' : 'Inactive'}
+                            </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex flex-col gap-2">
-                              {!inst.isVerified ? (
-                                <button
-                                  onClick={() => handleVerifyInstitution(inst._id, true)}
-                                  className="text-green-600 hover:text-green-900"
-                                >
-                                  ✓ Verify
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleVerifyInstitution(inst._id, false)}
-                                  className="text-orange-600 hover:text-orange-900"
-                                >
-                                  ✗ Unverify
-                                </button>
-                              )}
-                              
-                              {inst.isActive ? (
-                                <button
-                                  onClick={() => {
-                                    const reason = prompt('Reason for delisting:');
-                                    if (reason) handleUpdateInstitutionStatus(inst._id, false, reason);
-                                  }}
-                                  className="text-red-600 hover:text-red-900"
-                                >
-                                  🚫 Delist
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleUpdateInstitutionStatus(inst._id, true)}
-                                  className="text-blue-600 hover:text-blue-900"
-                                >
-                                  ✓ Activate
-                                </button>
-                              )}
-                              
+                            <button
+                              onClick={() => navigate(`/institutions/${inst._id}`)}
+                              className="text-blue-600 hover:text-blue-900 mr-3"
+                            >
+                              View Details
+                            </button>
+                            {!inst.isVerified && (
                               <button
-                                onClick={() => {
-                                  setSelectedInstitution(inst);
-                                  setShowInstitutionModal(true);
-                                }}
-                                className="text-gray-600 hover:text-gray-900"
+                                onClick={() => handleVerifyInstitution(inst._id, true)}
+                                className="text-green-600 hover:text-green-900 mr-3"
                               >
-                                View Details →
+                                Verify
                               </button>
-                            </div>
+                            )}
+                            {inst.isActive !== false ? (
+                              <button
+                                onClick={() => handleUpdateInstitutionStatus(inst._id, false)}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                Delist
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleUpdateInstitutionStatus(inst._id, true)}
+                                className="text-green-600 hover:text-green-900"
+                              >
+                                Activate
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -688,26 +613,12 @@ const AdminDashboard = () => {
                         setUserFilter({ ...userFilter, role: e.target.value });
                         setUserPagination({ ...userPagination, page: 1 });
                       }}
-                      className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
                     >
-                      <option value="">All Roles</option>
+                      <option value="">All Users</option>
                       <option value="aspirant">Aspirants</option>
                       <option value="institution">Institutions</option>
-                      <option value="admin">Admins</option>
                     </select>
-                    
-                    <button
-                      onClick={() => {
-                        const email = prompt('Enter email for new admin:');
-                        if (email) {
-                          // Send invitation logic
-                          alert(`Admin invitation sent to ${email}`);
-                        }
-                      }}
-                      className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
-                    >
-                      + Add Admin
-                    </button>
                   </div>
                 </div>
                 
@@ -834,25 +745,11 @@ const AdminDashboard = () => {
                         setCourseFilter({ ...courseFilter, isPublished: e.target.value });
                         setCoursePagination({ ...coursePagination, page: 1 });
                       }}
-                      className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
                     >
                       <option value="">All Courses</option>
                       <option value="true">Published</option>
                       <option value="false">Unpublished</option>
-                    </select>
-                    
-                    <select
-                      value={courseFilter.status}
-                      onChange={(e) => {
-                        setCourseFilter({ ...courseFilter, status: e.target.value });
-                        setCoursePagination({ ...coursePagination, page: 1 });
-                      }}
-                      className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">All Status</option>
-                      <option value="published">Published</option>
-                      <option value="draft">Draft</option>
-                      <option value="suspended">Suspended</option>
                     </select>
                   </div>
                 </div>
@@ -874,6 +771,9 @@ const AdminDashboard = () => {
                           Enrollments
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Rating
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Status
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -886,63 +786,51 @@ const AdminDashboard = () => {
                         <tr key={course._id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
-                              <div className="text-sm font-medium text-gray-900 line-clamp-2">{course.title}</div>
+                              <div className="text-sm font-medium text-gray-900">{course.title}</div>
                               <div className="text-sm text-gray-500">{course.courseCategory}</div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{course.institution?.institutionName}</div>
-                            <div className="text-sm text-gray-500">
-                              {course.institution?.isVerified ? '✓ Verified' : '⚠️ Unverified'}
-                            </div>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {course.institution?.institutionName}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
                             ₹{course.price.toLocaleString()}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {course.currentEnrollments}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {course.currentEnrollments || 0}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {course.averageRating?.overall ? `${course.averageRating.overall.toFixed(1)} (${course.totalReviews})` : 'No ratings'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              course.isPublished && course.status === 'published' 
-                                ? 'bg-green-100 text-green-800'
-                                : course.status === 'suspended'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-gray-100 text-gray-800'
+                              course.isPublished ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                             }`}>
-                              {course.status || 'draft'}
+                              {course.isPublished ? 'Published' : 'Draft'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex flex-col gap-2">
+                            <button
+                              onClick={() => window.open(`/courses/${course._id}`, '_blank')}
+                              className="text-blue-600 hover:text-blue-900 mr-3"
+                            >
+                              View
+                            </button>
+                            {course.isPublished ? (
                               <button
-                                onClick={() => {
-                                  setSelectedCourse(course);
-                                  setShowCourseModal(true);
-                                }}
-                                className="text-blue-600 hover:text-blue-900"
+                                onClick={() => handleToggleCoursePublication(course._id, false)}
+                                className="text-red-600 hover:text-red-900"
                               >
-                                View Details
+                                Unpublish
                               </button>
-                              {course.isPublished ? (
-                                <button
-                                  onClick={() => {
-                                    const reason = prompt('Reason for unpublishing:');
-                                    if (reason !== null) handleToggleCoursePublication(course._id, false, reason);
-                                  }}
-                                  className="text-red-600 hover:text-red-900"
-                                >
-                                  Unpublish
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleToggleCoursePublication(course._id, true)}
-                                  className="text-green-600 hover:text-green-900"
-                                >
-                                  Publish
-                                </button>
-                              )}
-                            </div>
+                            ) : (
+                              <button
+                                onClick={() => handleToggleCoursePublication(course._id, true)}
+                                className="text-green-600 hover:text-green-900"
+                              >
+                                Publish
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1048,6 +936,12 @@ const AdminDashboard = () => {
                           >
                             ✗ Reject
                           </button>
+                          <button
+                            onClick={() => handleVerifyReview(review.courseId, review.reviewId, 'archive')}
+                            className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+                          >
+                            📁 Archive
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1120,64 +1014,42 @@ const AdminDashboard = () => {
             
             {/* Settings Tab */}
             {activeTab === 'settings' && (
-              <div className="space-y-8">
-                <h2 className="text-xl font-semibold">Platform Settings</h2>
+              <div className="space-y-6">
+                <h2 className="text-xl font-semibold mb-6">Admin Settings</h2>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-gray-50 p-6 rounded-lg">
-                    <h3 className="text-lg font-semibold mb-4">General Settings</h3>
+                    <h3 className="text-lg font-semibold mb-4">Platform Settings</h3>
                     <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Platform Name
-                        </label>
-                        <input
-                          type="text"
-                          defaultValue="Civils HQ"
-                          className="w-full px-3 py-2 border rounded-lg"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Support Email
-                        </label>
-                        <input
-                          type="email"
-                          defaultValue="support@civilshq.com"
-                          className="w-full px-3 py-2 border rounded-lg"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Platform Commission (%)
-                        </label>
-                        <input
-                          type="number"
-                          defaultValue="10"
-                          className="w-full px-3 py-2 border rounded-lg"
-                        />
-                      </div>
+                      <label className="flex items-center">
+                        <input type="checkbox" defaultChecked className="mr-2" />
+                        <span className="text-sm">Enable user registration</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input type="checkbox" defaultChecked className="mr-2" />
+                        <span className="text-sm">Enable institution registration</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input type="checkbox" className="mr-2" />
+                        <span className="text-sm">Maintenance mode</span>
+                      </label>
                     </div>
                   </div>
                   
                   <div className="bg-gray-50 p-6 rounded-lg">
-                    <h3 className="text-lg font-semibold mb-4">Notification Settings</h3>
-                    <div className="space-y-3">
+                    <h3 className="text-lg font-semibold mb-4">Email Notifications</h3>
+                    <div className="space-y-4">
                       <label className="flex items-center">
                         <input type="checkbox" defaultChecked className="mr-2" />
-                        <span className="text-sm">Email notifications for new institutions</span>
+                        <span className="text-sm">New user registration</span>
                       </label>
                       <label className="flex items-center">
                         <input type="checkbox" defaultChecked className="mr-2" />
-                        <span className="text-sm">Email notifications for pending reviews</span>
+                        <span className="text-sm">New institution registration</span>
                       </label>
                       <label className="flex items-center">
                         <input type="checkbox" defaultChecked className="mr-2" />
-                        <span className="text-sm">Daily activity summary</span>
-                      </label>
-                      <label className="flex items-center">
-                        <input type="checkbox" className="mr-2" />
-                        <span className="text-sm">Weekly revenue report</span>
+                        <span className="text-sm">New course published</span>
                       </label>
                     </div>
                   </div>
@@ -1292,204 +1164,54 @@ const AdminDashboard = () => {
                         <span className={`px-2 py-1 text-xs rounded-full ${
                           selectedInstitution.isVerified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                         }`}>
-                          {selectedInstitution.isVerified ? 'Verified' : 'Pending'}
+                          {selectedInstitution.isVerified ? 'Verified' : 'Pending Verification'}
                         </span>
-                        {!selectedInstitution.isActive && (
-                          <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">
-                            Delisted
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="font-semibold mb-2">Course Statistics</h3>
-                    <div className="bg-gray-50 p-4 rounded">
-                      <div className="grid grid-cols-3 gap-4 text-center">
-                        <div>
-                          <p className="text-2xl font-bold">{selectedInstitution.courseCount || 0}</p>
-                          <p className="text-sm text-gray-600">Total Courses</p>
-                        </div>
-                        <div>
-                          <p className="text-2xl font-bold">{selectedInstitution.publishedCourseCount || 0}</p>
-                          <p className="text-sm text-gray-600">Published</p>
-                        </div>
-                        <div>
-                          <p className="text-2xl font-bold">
-                            {selectedInstitution.courseCount - selectedInstitution.publishedCourseCount || 0}
-                          </p>
-                          <p className="text-sm text-gray-600">Draft</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="font-semibold mb-2">Login Activity</h3>
-                    <div className="bg-gray-50 p-4 rounded">
-                      <p className="text-sm">
-                        Last Login: {selectedInstitution.lastLogin ? new Date(selectedInstitution.lastLogin).toLocaleString() : 'Never'}
-                      </p>
-                      <p className="text-sm mt-1">
-                        Total Logins: {selectedInstitution.loginCount || 0}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {selectedInstitution.delistReason && (
-                    <div>
-                      <h3 className="font-semibold mb-2">Delist Reason</h3>
-                      <div className="bg-red-50 p-4 rounded">
-                        <p className="text-sm text-red-800">{selectedInstitution.delistReason}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Course Details Modal */}
-        {showCourseModal && selectedCourse && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-6">
-                  <h2 className="text-2xl font-bold">Course Details</h2>
-                  <button
-                    onClick={() => setShowCourseModal(false)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    ✕
-                  </button>
-                </div>
-                
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="font-semibold mb-2">Basic Information</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-600">Title</p>
-                        <p className="font-medium">{selectedCourse.title}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Category</p>
-                        <p className="font-medium capitalize">{selectedCourse.courseCategory}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Institution</p>
-                        <p className="font-medium">{selectedCourse.institution?.institutionName}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Status</p>
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          selectedCourse.isPublished ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                          selectedInstitution.isActive !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}>
-                          {selectedCourse.status || 'draft'}
+                          {selectedInstitution.isActive !== false ? 'Active' : 'Delisted'}
                         </span>
                       </div>
                     </div>
                   </div>
                   
-                  <div>
-                    <h3 className="font-semibold mb-2">Description</h3>
-                    <p className="text-sm text-gray-700">{selectedCourse.description}</p>
-                  </div>
-                  
-                  <div>
-                    <h3 className="font-semibold mb-2">Pricing & Duration</h3>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-600">Price</p>
-                        <p className="font-medium">₹{selectedCourse.price?.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Duration</p>
-                        <p className="font-medium">{selectedCourse.duration}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Enrollments</p>
-                        <p className="font-medium">{selectedCourse.currentEnrollments}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="font-semibold mb-2">Performance Metrics</h3>
-                    <div className="bg-gray-50 p-4 rounded grid grid-cols-4 gap-4 text-center">
-                      <div>
-                        <p className="text-xl font-bold">{selectedCourse.views || 0}</p>
-                        <p className="text-sm text-gray-600">Views</p>
-                      </div>
-                      <div>
-                        <p className="text-xl font-bold">{selectedCourse.shortlisted || 0}</p>
-                        <p className="text-sm text-gray-600">Shortlisted</p>
-                      </div>
-                      <div>
-                        <p className="text-xl font-bold">{selectedCourse.averageRating?.overall?.toFixed(1) || '0.0'}</p>
-                        <p className="text-sm text-gray-600">Rating</p>
-                      </div>
-                      <div>
-                        <p className="text-xl font-bold">{selectedCourse.totalReviews || 0}</p>
-                        <p className="text-sm text-gray-600">Reviews</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {selectedCourse.adminAction && (
-                    <div>
-                      <h3 className="font-semibold mb-2">Admin Actions</h3>
-                      <div className="bg-yellow-50 p-4 rounded">
-                        <p className="text-sm">
-                          <span className="font-medium">Action:</span> {selectedCourse.adminAction.action}
-                        </p>
-                        {selectedCourse.adminAction.reason && (
-                          <p className="text-sm mt-1">
-                            <span className="font-medium">Reason:</span> {selectedCourse.adminAction.reason}
-                          </p>
-                        )}
-                        <p className="text-sm mt-1">
-                          <span className="font-medium">Date:</span> {new Date(selectedCourse.adminAction.actionAt).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-end gap-3">
-                    <a
-                      href={`/courses/${selectedCourse._id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-                    >
-                      View Public Page
-                    </a>
-                    {selectedCourse.isPublished ? (
+                  <div className="border-t pt-4">
+                    <h3 className="font-medium text-gray-900 mb-2">Actions</h3>
+                    <div className="flex gap-2 flex-wrap">
                       <button
                         onClick={() => {
-                          const reason = prompt('Reason for unpublishing:');
-                          if (reason !== null) {
-                            handleToggleCoursePublication(selectedCourse._id, false, reason);
-                            setShowCourseModal(false);
-                          }
+                          navigate(`/institutions/${selectedInstitution._id}`);
+                          setShowInstitutionModal(false);
                         }}
-                        className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
                       >
-                        Unpublish Course
+                        View Full Profile
                       </button>
-                    ) : (
+                      {!selectedInstitution.isVerified && (
+                        <button
+                          onClick={() => {
+                            handleVerifyInstitution(selectedInstitution._id, true);
+                            setShowInstitutionModal(false);
+                          }}
+                          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                        >
+                          Verify Institution
+                        </button>
+                      )}
                       <button
                         onClick={() => {
-                          handleToggleCoursePublication(selectedCourse._id, true);
-                          setShowCourseModal(false);
+                          handleUpdateInstitutionStatus(selectedInstitution._id, selectedInstitution.isActive === false);
+                          setShowInstitutionModal(false);
                         }}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                        className={`px-4 py-2 rounded-lg transition ${
+                          selectedInstitution.isActive !== false
+                            ? 'bg-red-600 text-white hover:bg-red-700'
+                            : 'bg-green-600 text-white hover:bg-green-700'
+                        }`}
                       >
-                        Publish Course
+                        {selectedInstitution.isActive !== false ? 'Delist Institution' : 'Activate Institution'}
                       </button>
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>

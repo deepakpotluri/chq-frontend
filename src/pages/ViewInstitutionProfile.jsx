@@ -17,9 +17,6 @@ const ViewInstitutionProfile = () => {
   const userRole = localStorage.getItem('role');
   const userId = localStorage.getItem('userId');
   
-  // Debug logging
-  console.log('Current user:', { userRole, userId, profileId: id });
-  
   // Check if current user is the institution owner
   const isOwner = userRole === 'institution' && userId === id;
   const isAdmin = userRole === 'admin';
@@ -53,9 +50,6 @@ const ViewInstitutionProfile = () => {
       const response = await api.get(`/api/institutions/${id}/profile`, config);
       
       if (response.data.success) {
-        console.log('Institution profile data:', response.data.data);
-        console.log('Is owner?', response.data.isOwner);
-        
         setInstitutionData(response.data.data);
         
         // Set editable data for contact person
@@ -67,7 +61,7 @@ const ViewInstitutionProfile = () => {
         }
       }
     } catch (error) {
-      console.error('Error fetching institution profile:', error);
+      console.error('Error fetching institution profile:', error.response?.data || error.message);
       setError('Failed to load institution profile');
     } finally {
       setLoading(false);
@@ -84,23 +78,38 @@ const ViewInstitutionProfile = () => {
   const handleSaveContactPerson = async () => {
     setSaving(true);
     try {
-      // Use the correct update endpoint - update the entire profile with contactPerson
-      const response = await api.put('/api/institution/profile', {
-        contactPerson: editedContactPerson
-      });
+      const response = await api.put('/api/institution/profile/contact', editedContactPerson);
 
       if (response.data.success) {
-        await fetchInstitutionProfile();
+        // Update local state with the returned data
+        setInstitutionData(prev => ({
+          ...prev,
+          institutionProfile: {
+            ...prev.institutionProfile,
+            contactPerson: response.data.data
+          }
+        }));
         setIsEditing(false);
         alert('Contact person details updated successfully!');
       }
     } catch (error) {
-      console.error('Error updating contact person:', error);
+      console.error('Error updating contact person:', error.response?.data || error.message);
       alert(error.response?.data?.message || 'Failed to update contact person details');
     } finally {
       setSaving(false);
     }
   };
+
+  const handleCancelEdit = () => {
+    // Reset to original data when canceling
+    if (institutionData?.institutionProfile?.contactPerson) {
+      setEditedContactPerson(institutionData.institutionProfile.contactPerson);
+    } else if (institutionData?.contactPerson) {
+      setEditedContactPerson(institutionData.contactPerson);
+    }
+    setIsEditing(false);
+  };
+
 
   if (loading) {
     return (
@@ -256,16 +265,13 @@ const ViewInstitutionProfile = () => {
                       >
                         {saving ? 'Saving...' : 'Save Changes'}
                       </button>
-                      <button
-                        onClick={() => {
-                          setIsEditing(false);
-                          setEditedContactPerson(contactPerson);
-                        }}
-                        disabled={saving}
-                        className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400"
-                      >
-                        Cancel
-                      </button>
+                     <button
+  onClick={handleCancelEdit}
+  disabled={saving}
+  className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 disabled:opacity-50"
+>
+  Cancel
+</button>
                     </div>
                   </div>
                 ) : (
