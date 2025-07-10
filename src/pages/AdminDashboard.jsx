@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import PromotedCoursesManager from '../components/PromotedCourseManager';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -43,6 +44,8 @@ const [reviewPagination, setReviewPagination] = useState({ page: 1, totalPages: 
   useEffect(() => {
     fetchAdminData();
   }, []);
+
+  
   
   useEffect(() => {
   if (activeTab === 'users') fetchUsers();
@@ -355,7 +358,8 @@ const [reviewPagination, setReviewPagination] = useState({ page: 1, totalPages: 
                 { id: 'courses', label: 'Courses', icon: '📚', count: stats?.courseCount },
                 { id: 'reviews', label: 'Reviews', icon: '⭐', count: stats?.pendingReviews, badge: 'danger' },
                 { id: 'activity', label: 'Activity', icon: '📈' },
-                { id: 'settings', label: 'Settings', icon: '⚙️' }
+                { id: 'settings', label: 'Settings', icon: '⚙️' },
+                { id: 'promoted', label: 'Homepage Promotion', icon: '🏠' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -1268,6 +1272,10 @@ const [reviewPagination, setReviewPagination] = useState({ page: 1, totalPages: 
             )}
           </div>
         </div>
+        {/* Promoted Courses Tab */}
+{activeTab === 'promoted' && (
+  <PromotedCoursesManager />
+)}
         
         {/* Institution Details Modal */}
         {showInstitutionModal && selectedInstitution && (

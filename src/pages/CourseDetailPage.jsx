@@ -25,6 +25,7 @@ const [selectedDate, setSelectedDate] = useState(null);
 const [showDaySchedule, setShowDaySchedule] = useState(false);
 const [selectedSession, setSelectedSession] = useState(null);
 const [showSessionInfo, setShowSessionInfo] = useState(false);
+const [institutionProfile, setInstitutionProfile] = useState(null);
 // Helper function to format time with AM/PM
 const formatTime12Hour = (time24) => {
   if (!time24) return '';
@@ -52,6 +53,10 @@ const handleCalendarEventClick = (event) => {
       const response = await api.get(`/api/courses/${courseId}`);
       if (response.data.success) {
         setCourse(response.data.data);
+
+      if (response.data.data.institution?._id) {
+             await fetchInstitutionProfile(response.data.data.institution._id);
+}
         
         // IMPORTANT: Also fetch ALL reviews (including pending ones) if user is logged in
         const token = localStorage.getItem('token');
@@ -80,6 +85,26 @@ const handleCalendarEventClick = (event) => {
     }
   };
 
+  const fetchInstitutionProfile = async (institutionId) => {
+  try {
+    const token = localStorage.getItem('token');
+    const config = token ? {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    } : {};
+    
+    const response = await api.get(`/api/institutions/${institutionId}/profile`, config);
+    
+    if (response.data.success) {
+      setInstitutionProfile(response.data.data);
+    }
+  } catch (error) {
+    console.error('Error fetching institution profile:', error.response?.data || error.message);
+  }
+};
+
+
   const trackCourseView = async () => {
     try {
       await api.post(`/api/courses/${courseId}/view`);
@@ -91,7 +116,8 @@ const handleCalendarEventClick = (event) => {
   const checkShortlistStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (token) {
+      const userRole = localStorage.getItem('role');
+      if (token && userRole === 'aspirant') {
         const response = await api.get('/api/aspirant/shortlist');
         if (response.data.success) {
           const shortlistedCourses = response.data.data?.courses || [];
@@ -221,6 +247,54 @@ const handleCalendarEventClick = (event) => {
 
   // Get display reviews based on login status
   const displayReviews = localStorage.getItem('token') ? course.reviews : course.approvedReviews || course.reviews?.filter(r => r.verificationStatus === 'approved') || [];
+  const getInstitutionData = () => {
+  if (institutionProfile) {
+    const getAddressString = (address) => {
+      if (typeof address === 'string') {
+        return address;
+      }
+      if (typeof address === 'object' && address !== null) {
+        if (address.fullAddress) {
+          return address.fullAddress;
+        }
+        const parts = [];
+        if (address.street) parts.push(address.street);
+        if (address.city) parts.push(address.city);
+        if (address.state) parts.push(address.state);
+        if (address.country) parts.push(address.country);
+        if (address.zipCode) parts.push(address.zipCode);
+        return parts.join(', ');
+      }
+      return '';
+    };
+
+    return {
+      name: institutionProfile.institutionProfile?.institutionName || institutionProfile.name,
+      address: getAddressString(institutionProfile.institutionProfile?.address),
+      email: institutionProfile.email,
+      googleMapsLink: institutionProfile.institutionProfile?.googleMapsLink,
+      establishedYear: institutionProfile.institutionProfile?.establishedYear,
+      isVerified: institutionProfile.isVerified,
+      id: institutionProfile._id
+    };
+  }
+  
+  return {
+    name: course.institution?.institutionProfile?.institutionName || 
+          course.institution?.institutionName || 
+          course.institution?.name || 
+          'Institution Name',
+    address: course.institution?.institutionProfile?.address || 
+             course.institution?.address || 
+             `${course.city}, ${course.state}`,
+    email: course.institution?.email,
+    googleMapsLink: course.institution?.institutionProfile?.googleMapsLink,
+    establishedYear: course.institution?.institutionProfile?.establishedYear,
+    isVerified: course.institution?.isVerified,
+    id: course.institution?._id
+  };
+};
+const institutionData = getInstitutionData();
  return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
@@ -419,56 +493,59 @@ const handleCalendarEventClick = (event) => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2">
-            {/* Navigation Tabs */}
-            <div className="bg-white rounded-lg shadow-sm mb-6">
-              <div className="border-b">
-                <nav className="flex -mb-px">
-                  {[
-                    { id: 'overview', label: 'Overview' },
-                    { id: 'curriculum', label: 'Curriculum' },
-                    { id: 'faculty', label: 'Faculty' },
-                    { id: 'schedule', label: 'Schedule' },
-                    { id: 'reviews', label: 'Reviews' }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === tab.id 
-                          ? 'text-gray-900 border-gray-900' 
-                          : 'text-gray-500 border-transparent hover:text-gray-700'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </nav>
-              </div>
+            <div className="mb-6">
+  <div className="border-b border-gray-200">
+    <div className="overflow-x-auto scrollbar-hide">
+      <nav className="flex space-x-6 sm:space-x-8 min-w-max px-1">
+        {[
+          { id: 'overview', label: 'Overview' },
+          { id: 'curriculum', label: 'Curriculum' },
+          { id: 'faculty', label: 'Faculty' },
+          { id: 'schedule', label: 'Schedule' },
+          { id: 'reviews', label: 'Reviews' }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap transition-colors flex-shrink-0 ${
+              activeTab === tab.id
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+    </div>
+  </div>
 
               <div className="p-6">
                 {/* Overview Tab */}
-                {activeTab === 'overview' && (
-                  <div className="space-y-8">
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900 mb-4">About This Course</h2>
-                      <div className="prose max-w-none text-gray-600">
-                        <p className="whitespace-pre-line">{course.description}</p>
-                      </div>
-                    </div>
+{activeTab === 'overview' && (
+  <div className="space-y-6 sm:space-y-8">
+    <div>
+      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">About This Course</h2>
+      <div className="prose prose-sm sm:prose max-w-none">
+        <p className="text-gray-700 leading-relaxed mb-6 whitespace-pre-wrap break-words">
+          {course.description || 'Course description will be updated soon.'}
+        </p>
+      </div>
+    </div>
 
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-4">What You'll Learn</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {course.subjects?.map((subject, idx) => (
-                          <div key={idx} className="flex items-start">
-                            <svg className="w-5 h-5 text-green-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span className="text-gray-700">{subject}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+    <div>
+      <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">What You'll Learn</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        {course.subjects?.map((subject, idx) => (
+          <div key={idx} className="flex items-start">
+            <svg className="w-5 h-5 text-green-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-gray-700 text-sm sm:text-base break-words">{subject}</span>
+          </div>
+        ))}
+      </div>
+    </div>
 
                     <div>
                       <h3 className="text-xl font-bold text-gray-900 mb-4">Course Features</h3>
@@ -1277,48 +1354,82 @@ const handleCalendarEventClick = (event) => {
             </div>
           </div>
 
-          {/* Sidebar */}
+              {/* Sidebar */}
           <div className="lg:col-span-1">
-           {/* Institution Details */}
-<div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-  <h3 className="text-lg font-bold text-gray-900 mb-4">Institution Details</h3>
-  
-  <div className="space-y-4">
-    <div>
-      <h4 className="font-semibold text-gray-900">{course.institution?.institutionProfile?.institutionName || course.institution?.institutionName}</h4>
-      <p className="text-sm text-gray-600 mt-1">{course.address}</p>
-    </div>
-    
-    <div className="space-y-2">
-      <div className="flex items-start">
-        <svg className="w-5 h-5 text-gray-400 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-        <span className="text-sm text-gray-600">{course.institution?.email}</span>
-      </div>
-      
-      {course.institution?.isVerified && (
-        <div className="flex items-center">
-          <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-          </svg>
-          <span className="text-sm text-green-600 font-medium">Verified Institution</span>
-        </div>
-      )}
-    </div>
-    
-    <Link 
-      to={`/institutions/${course.institution?._id}`}
-      className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
-    >
-      View Institute Profile
-      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-      </svg>
-    </Link>
-  </div>
-</div>
-
+            {/* Institution Details - FIXED with proper data fetching */}
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-4 lg:mb-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Institution Details</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-gray-900">
+                    {institutionData.name}
+                  </h4>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {institutionData.address}
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-start">
+                    <svg className="w-5 h-5 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <span className="text-sm text-gray-600 break-all">{institutionData.email}</span>
+                  </div>
+                  
+                  {institutionData.establishedYear && (
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-sm text-gray-600">
+                        Established in {institutionData.establishedYear}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {institutionData.isVerified && (
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 text-green-600 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                      <span className="text-sm text-green-600 font-medium">Verified Institution</span>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Google Maps Link */}
+                {institutionData.googleMapsLink && (
+                  <div className="pt-2">
+                    <a
+                      href={institutionData.googleMapsLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      View on Map
+                    </a>
+                  </div>
+                )}
+                
+                <div className="pt-2">
+                  <Link 
+                    to={`/institutions/${institutionData.id}`}
+                    className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    View Institute Profile
+                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+                </div>
+              </div>
+            </div>
             {/* Related Courses */}
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h3 className="text-lg font-bold text-gray-900 mb-4">You May Also Like</h3>

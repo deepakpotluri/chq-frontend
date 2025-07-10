@@ -72,18 +72,37 @@ const HomePage = () => {
       }
 
       // Fetch promoted courses
-      try {
-        console.log('Fetching promoted courses...');
-        const promotedResponse = await api.get('/api/courses/published?promoted=true&limit=8');
-        console.log('Promoted response:', promotedResponse);
-        
-        if (promotedResponse.data.success && promotedResponse.data.data) {
-          setPromotedCourses(promotedResponse.data.data);
-          console.log(`Set ${promotedResponse.data.data.length} promoted courses`);
-        }
-      } catch (promotedError) {
-        console.error('Error fetching promoted courses:', promotedError);
-      }
+      // Fetch promoted courses
+try {
+  console.log('Fetching homepage promoted courses...');
+  // First try to get admin-selected homepage courses
+  const homepageResponse = await api.get('/api/courses/published?homepage=true');
+  
+  if (homepageResponse.data.success && homepageResponse.data.data && homepageResponse.data.data.length > 0) {
+    setPromotedCourses(homepageResponse.data.data);
+    console.log(`Set ${homepageResponse.data.data.length} admin-selected homepage courses`);
+  } else {
+    // Fallback to regular promoted courses
+    console.log('No admin-selected courses, fetching regular promoted courses...');
+    const promotedResponse = await api.get('/api/courses/published?promoted=true&limit=4');
+    
+    if (promotedResponse.data.success && promotedResponse.data.data) {
+      setPromotedCourses(promotedResponse.data.data);
+      console.log(`Set ${promotedResponse.data.data.length} promoted courses`);
+    }
+  }
+} catch (promotedError) {
+  console.error('Error fetching promoted courses:', promotedError);
+  // Fallback to any published courses
+  try {
+    const fallbackResponse = await api.get('/api/courses/published?limit=4');
+    if (fallbackResponse.data.success && fallbackResponse.data.data) {
+      setPromotedCourses(fallbackResponse.data.data);
+    }
+  } catch (fallbackError) {
+    console.error('Fallback also failed:', fallbackError);
+  }
+}
 
       // If no featured courses, fetch recent published courses
       if (featuredCourses.length === 0) {
@@ -274,77 +293,69 @@ const HomePage = () => {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400"> UPSC Course</span>
             </h1>
             <p className="text-base sm:text-lg md:text-xl text-gray-300 mb-6 sm:mb-8">
-              Search from 1000+ courses by top institutes. Compare, review, and enroll in the best UPSC preparation courses.
+              Search from 1000+ courses by top institutes. Compare, review, and enroll in the best courses.
             </p>
 
             {/* Smart Search Bar */}
-            <form onSubmit={handleSearch} className="bg-white rounded-lg p-2 shadow-2xl">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-                <div className="md:col-span-2">
-                  <input
-                    type="text"
-                    placeholder="Search courses, institutes, cities..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 text-gray-800 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                  />
-                </div>
-                
-                <select
-                  value={quickFilters.category}
-                  onChange={(e) => setQuickFilters({...quickFilters, category: e.target.value})}
-                  className="px-3 sm:px-4 py-2 sm:py-3 text-gray-800 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                >
-                  <option value="">All Categories</option>
-                  {courseCategories.map(cat => (
-                    <option key={cat.value} value={cat.value}>{cat.label}</option>
-                  ))}
-                </select>
+            <form onSubmit={handleSearch} className="bg-white/95 backdrop-blur-sm rounded-lg p-4 sm:p-2 shadow-xl">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-2 sm:items-center"> 
+               {/* City Selector with icon */}
+<div className="relative w-full sm:w-auto">
+  <select
+    value={quickFilters.city}
+    onChange={(e) => setQuickFilters({...quickFilters, city: e.target.value})}
+    className="appearance-none pl-8 pr-8 py-2.5 text-gray-950 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white w-full sm:w-[140px]"
+  >
+    <option value="">All Cities</option>
+    {popularCities.map(city => (
+      <option key={city} value={city}>{city}</option>
+    ))}
+  </select>
+  <svg className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+  </svg>
+  <svg className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+  </svg>
+</div>
 
-                <select
-                  value={quickFilters.mode}
-                  onChange={(e) => setQuickFilters({...quickFilters, mode: e.target.value})}
-                  className="px-3 sm:px-4 py-2 sm:py-3 text-gray-800 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                >
-                  <option value="">All Modes</option>
-                  {courseModes.map(mode => (
-                    <option key={mode.value} value={mode.value}>{mode.label}</option>
-                  ))}
-                </select>
 
-                <button
-                  type="submit"
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-2 sm:py-3 px-4 sm:px-6 rounded transition flex items-center justify-center text-sm sm:text-base"
-                >
-                  🔍 Search
-                </button>
+<select
+  value={quickFilters.category}
+  onChange={(e) => setQuickFilters({...quickFilters, category: e.target.value})}
+  className="w-full sm:w-auto px-4 py-2.5 text-gray-950 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+>
+  <option value="">All Categories</option>
+  {courseCategories.map(cat => (
+    <option key={cat.value} value={cat.value}>{cat.label}</option>
+  ))}
+</select>
+
+{/* Search Input */}
+<div className="flex-1 relative">
+  <input 
+    type="text"
+    placeholder="Search for a course or an institute"
+    value={searchQuery}
+    onChange={(e) => setSearchQuery(e.target.value)}
+    className="w-full pl-10 pr-4 py-2.5 text-gray-950 rounded-md border border-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+  />
+  <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+  </svg>
+</div>
+
+{/* Search Button */}
+<button
+  type="submit"
+  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-2.5 px-6 rounded-md transition-all duration-200 transform hover:scale-105 text-sm shadow-md w-full sm:w-auto"
+>
+  🔍 Search
+</button>
               </div>
             </form>
 
-            {/* Advanced Filters */}
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <select
-                value={quickFilters.city}
-                onChange={(e) => setQuickFilters({...quickFilters, city: e.target.value})}
-                className="px-3 py-1 text-sm bg-gray-800 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select City</option>
-                {popularCities.map(city => (
-                  <option key={city} value={city}>{city}</option>
-                ))}
-              </select>
-
-              <select
-                value={quickFilters.priceRange}
-                onChange={(e) => setQuickFilters({...quickFilters, priceRange: e.target.value})}
-                className="px-3 py-1 text-sm bg-gray-800 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Price Range</option>
-                {priceRanges.map(range => (
-                  <option key={range.value} value={range.value}>{range.label}</option>
-                ))}
-              </select>
-            </div>
           </div>
         </div>
       </section>
@@ -373,7 +384,7 @@ const HomePage = () => {
       </section>
 
       {/* Promoted Courses Carousel */}
-      {!loading && promotedCourses.length > 0 && (
+      {/* {!loading && promotedCourses.length > 0 && (
         <section className="py-8 sm:py-12 md:py-16 bg-gradient-to-r from-yellow-50 to-orange-50">
           <div className="container mx-auto px-4">
             <div className="flex items-center justify-between mb-6 sm:mb-8">
@@ -390,7 +401,7 @@ const HomePage = () => {
             </div>
           </div>
         </section>
-      )}
+      )} */}
 
       {/* Featured Courses */}
       <section className="py-8 sm:py-12 md:py-16 bg-white">

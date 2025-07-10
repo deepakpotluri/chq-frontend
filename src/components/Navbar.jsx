@@ -102,7 +102,7 @@ const Navbar = () => {
             
             {/* People dropdown */}
             <div className="relative">
-              <button 
+              {/* <button 
                 onClick={togglePeopleMenu}
                 className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 hover:bg-gray-100 flex items-center"
               >
@@ -116,9 +116,9 @@ const Navbar = () => {
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
-              </button>
+              </button> */}
               
-              {peopleMenuOpen && (
+              {/* {peopleMenuOpen && (
                 <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 py-1 z-50">
                   <button 
                     onClick={() => handleDashboardClick('admin', '/admin/dashboard')}
@@ -141,7 +141,7 @@ const Navbar = () => {
                     Aspirant Dashboard
                   </button>
                 </div>
-              )}
+              )} */}
             </div>
             
             {/* Profile/Login section */}
@@ -193,7 +193,7 @@ const Navbar = () => {
           </Link>
           
           {/* Dashboard options for mobile */}
-          <div className="px-3 py-2 rounded-md text-base font-medium border-t border-gray-200 mt-2 pt-2">
+          {/* <div className="px-3 py-2 rounded-md text-base font-medium border-t border-gray-200 mt-2 pt-2">
             <h3 className="text-gray-500 text-sm uppercase font-bold mb-2">People</h3>
             
             <button 
@@ -216,7 +216,7 @@ const Navbar = () => {
             >
               Aspirant Dashboard
             </button>
-          </div>
+          </div> */}
           
           {/* Login/Signup button for mobile */}
           {!isLoggedIn && (
