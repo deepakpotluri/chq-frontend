@@ -321,17 +321,29 @@ try {
 </div>
 
 
-<select
-  value={quickFilters.category}
-  onChange={(e) => setQuickFilters({...quickFilters, category: e.target.value})}
-  className="w-full sm:w-auto px-4 py-2.5 text-gray-950 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
->
-  <option value="">All Categories</option>
-  {courseCategories.map(cat => (
-    <option key={cat.value} value={cat.value}>{cat.label}</option>
-  ))}
-</select>
-
+<div className="relative w-full sm:w-auto">
+  <select
+    value={quickFilters.category}
+    onChange={(e) => setQuickFilters({...quickFilters, category: e.target.value})}
+    className="appearance-none pl-8 pr-8 py-2.5 text-gray-950 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white w-full sm:w-[160px] cursor-pointer"
+    style={{
+      WebkitAppearance: 'none',
+      MozAppearance: 'none',
+      backgroundImage: 'none'
+    }}
+  >
+    <option value="">All Categories</option>
+    {courseCategories.map(cat => (
+      <option key={cat.value} value={cat.value}>{cat.label}</option>
+    ))}
+  </select>
+  <svg className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+  </svg>
+  <svg className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+  </svg>
+</div>
 {/* Search Input */}
 <div className="flex-1 relative">
   <input 
