@@ -136,19 +136,25 @@ const LoginForm = () => {
       )}
       
       <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-medium mb-2">I am logging in as</label>
-          <select
-            name="role"
-            value={formData.role}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-sm sm:text-base"
-          >
-            <option value="aspirant">Aspirant</option>
-            <option value="institution">Institution</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
+       <div className="mb-4">
+  <label className="block text-gray-700 text-sm font-medium mb-2">I am logging in as</label>
+  <div className="relative">
+    <select
+      name="role"
+      value={formData.role}
+      onChange={handleChange}
+      className="appearance-none w-full px-4 py-2.5 pr-8 text-gray-950 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+      style={{WebkitAppearance: 'none', MozAppearance: 'none'}}
+    >
+      <option value="aspirant">Aspirant</option>
+      <option value="institution">Institution</option>
+      <option value="admin">Admin</option>
+    </select>
+    <svg className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+    </svg>
+  </div>
+</div>
         
         <div className="mb-4">
           <label className="block text-gray-700 text-sm font-medium mb-2">Email</label>
