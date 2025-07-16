@@ -2,6 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const HomePage = () => {
   const [featuredCourses, setFeaturedCourses] = useState([]);
@@ -36,9 +43,22 @@ const HomePage = () => {
   ];
 
   const popularCities = [
-    'Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 
-    'Hyderabad', 'Pune', 'Ahmedabad', 'Jaipur', 'Lucknow'
-  ];
+  // Tier 1 cities
+  'Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 'Hyderabad',
+
+  // Tier 2 cities
+  'Pune', 'Ahmedabad', 'Jaipur', 'Lucknow', 'Surat', 'Kanpur', 'Nagpur',
+  'Indore', 'Bhopal', 'Coimbatore', 'Vadodara', 'Ludhiana', 'Visakhapatnam',
+  'Patna', 'Thiruvananthapuram', 'Ranchi', 'Raipur', 'Guwahati', 'Chandigarh',
+
+  // Major towns / emerging cities
+  'Amritsar', 'Vijayawada', 'Mysore', 'Jodhpur', 'Madurai', 'Jalandhar',
+  'Nashik', 'Hubli-Dharwad', 'Rajkot', 'Varanasi', 'Meerut', 'Gwalior',
+  'Dhanbad', 'Aurangabad', 'Tiruchirappalli', 'Salem', 'Udaipur', 'Ajmer',
+  'Dehradun', 'Noida', 'Gurgaon', 'Faridabad', 'Ghaziabad', 'Howrah',
+  'Kochi', 'Jamshedpur', 'Bhilai', 'Bhavnagar', 'Bilaspur', 'Tirupati',
+  'Mangalore', 'Siliguri', 'Aligarh', 'Bareilly', 'Moradabad'
+];
 
   const priceRanges = [
     { value: '0-5000', label: 'Under ₹5,000' },
@@ -255,10 +275,12 @@ try {
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-600">
               <span className="font-medium">
-                {course.institution?.institutionName || 'Institution'}
+                {course.institution?.institutionProfile?.institutionName || 
+       course.institution?.name || 
+       'Institution'}
               </span>
               {course.faculty && course.faculty.length > 0 && course.faculty[0].name && (
-                <p className="text-xs mt-1">by {course.faculty[0].name}</p>
+                <p className="text-xs mt-1">Faculty: {course.faculty[0].name}</p>
               )}
             </div>
             <Link
@@ -301,49 +323,43 @@ try {
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-2 sm:items-center"> 
                {/* City Selector with icon */}
 <div className="relative w-full sm:w-auto">
-  <select
-    value={quickFilters.city}
-    onChange={(e) => setQuickFilters({...quickFilters, city: e.target.value})}
-    className="appearance-none pl-8 pr-8 py-2.5 text-gray-950 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white w-full sm:w-[140px]"
+  <Select 
+    value={quickFilters.city || "all"} 
+    onValueChange={(value) => setQuickFilters({...quickFilters, city: value === "all" ? "" : value})}
   >
-    <option value="">All Cities</option>
-    {popularCities.map(city => (
-      <option key={city} value={city}>{city}</option>
-    ))}
-  </select>
-  <svg className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-  </svg>
-  <svg className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-  </svg>
+    <SelectTrigger className="w-full sm:w-[140px] pl-8 text-gray-950 [&>span]:text-gray-950">
+      <svg className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+      </svg>
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="all" className="text-gray-950">All Cities</SelectItem>
+      {popularCities.map(city => (
+        <SelectItem key={city} value={city} className="text-gray-950">{city}</SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
 </div>
 
 
-<div className="relative w-full sm:w-auto">
-  <select
-    value={quickFilters.category}
-    onChange={(e) => setQuickFilters({...quickFilters, category: e.target.value})}
-    className="appearance-none pl-8 pr-8 py-2.5 text-gray-950 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white w-full sm:w-[160px] cursor-pointer"
-    style={{
-      WebkitAppearance: 'none',
-      MozAppearance: 'none',
-      backgroundImage: 'none'
-    }}
-  >
-    <option value="">All Categories</option>
+<Select 
+  value={quickFilters.category || "all"} 
+  onValueChange={(value) => setQuickFilters({...quickFilters, category: value === "all" ? "" : value})}
+>
+  <SelectTrigger className="w-full sm:w-[140px] text-gray-950 [&>span]:text-gray-950">
+    <SelectValue />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="all" className="text-gray-950">All Categories</SelectItem>
     {courseCategories.map(cat => (
-      <option key={cat.value} value={cat.value}>{cat.label}</option>
+      <SelectItem key={cat.value} value={cat.value} className="text-gray-950">
+        {cat.icon} {cat.label}
+      </SelectItem>
     ))}
-  </select>
-  <svg className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
-  </svg>
-  <svg className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-  </svg>
-</div>
+  </SelectContent>
+</Select>
 {/* Search Input */}
 <div className="flex-1 relative">
   <input 
@@ -455,18 +471,31 @@ try {
               </Link>
             </div>
           ) : featuredCourses.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
-              {featuredCourses.map(course => (
-                <CourseCard key={course._id} course={course} />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
-              {promotedCourses.slice(0, 3).map(course => (
-                <CourseCard key={course._id} course={course} />
-              ))}
-            </div>
-          )}
+  <>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+      {featuredCourses.slice(0, 6).map(course => (
+        <CourseCard key={course._id} course={course} />
+      ))}
+    </div>
+    <div className="text-center mt-8">
+      <Link 
+        to="/courses" 
+        className="inline-flex items-center bg-gray-800 text-white px-6 py-3 rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 transform hover:scale-105"
+      >
+        Browse All Courses
+        <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+        </svg>
+      </Link>
+    </div>
+  </>
+) : (
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+    {promotedCourses.slice(0, 3).map(course => (
+      <CourseCard key={course._id} course={course} />
+    ))}
+  </div>
+)}
         </div>
       </section>
 

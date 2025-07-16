@@ -73,9 +73,22 @@ const CoursesPage = () => {
 
   // Popular cities - same as HomePage
   const popularCities = [
-    'Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 
-    'Hyderabad', 'Pune', 'Ahmedabad', 'Jaipur', 'Lucknow'
-  ];
+  // Tier 1 cities
+  'Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 'Hyderabad',
+
+  // Tier 2 cities
+  'Pune', 'Ahmedabad', 'Jaipur', 'Lucknow', 'Surat', 'Kanpur', 'Nagpur',
+  'Indore', 'Bhopal', 'Coimbatore', 'Vadodara', 'Ludhiana', 'Visakhapatnam',
+  'Patna', 'Thiruvananthapuram', 'Ranchi', 'Raipur', 'Guwahati', 'Chandigarh',
+
+  // Major towns / emerging cities
+  'Amritsar', 'Vijayawada', 'Mysore', 'Jodhpur', 'Madurai', 'Jalandhar',
+  'Nashik', 'Hubli-Dharwad', 'Rajkot', 'Varanasi', 'Meerut', 'Gwalior',
+  'Dhanbad', 'Aurangabad', 'Tiruchirappalli', 'Salem', 'Udaipur', 'Ajmer',
+  'Dehradun', 'Noida', 'Gurgaon', 'Faridabad', 'Ghaziabad', 'Howrah',
+  'Kochi', 'Jamshedpur', 'Bhilai', 'Bhavnagar', 'Bilaspur', 'Tirupati',
+  'Mangalore', 'Siliguri', 'Aligarh', 'Bareilly', 'Moradabad'
+];
 
   useEffect(() => {
     fetchCourses();

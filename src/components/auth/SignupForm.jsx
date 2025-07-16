@@ -1,86 +1,16 @@
-// src/components/auth/SignupForm.jsx - Fixed typing issue for institution signup
-import React, { useState, useEffect, memo, useCallback } from 'react';
+// src/components/auth/SignupForm.jsx - Gray theme (no purple)
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Check, ChevronRight, Building2, User, Phone, MapPin, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Check, ChevronRight, Building2, User, Phone, MapPin, AlertCircle, Eye, EyeOff, Loader2, Mail } from 'lucide-react';
 import api from '../../../services/api';
-
-// Move InputField outside the component and memoize it
-const InputField = memo(({ label, name, type = "text", value, onChange, placeholder, required = false, error, className = "", showPasswordToggle, showPassword, onTogglePassword }) => (
-  <div className={className}>
-    <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-    <div className="relative">
-      <input
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all duration-200 ${
-          error 
-            ? 'border-red-300 focus:border-red-500 bg-red-50' 
-            : 'border-gray-200 focus:border-slate-600 bg-gray-50 focus:bg-white'
-        }`}
-        placeholder={placeholder}
-        required={required}
-        autoComplete={name === 'password' ? 'new-password' : name === 'email' ? 'email' : 'off'}
-      />
-      {showPasswordToggle && (
-        <button
-          type="button"
-          onClick={onTogglePassword}
-          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-        >
-          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-        </button>
-      )}
-    </div>
-    {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
-  </div>
-));
-
-// Move SelectField outside and memoize it
-const SelectField = memo(({ label, name, value, onChange, options, placeholder, required = false, error, className = "" }) => (
-  <div className={className}>
-    <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-    <select
-      name={name}
-      value={value}
-      onChange={onChange}
-      className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all duration-200 ${
-        error 
-          ? 'border-red-300 focus:border-red-500 bg-red-50' 
-          : 'border-gray-200 focus:border-slate-600 bg-gray-50 focus:bg-white'
-      }`}
-      required={required}
-    >
-      <option value="">{placeholder}</option>
-      {options.map(option => (
-        <option key={option.value} value={option.value}>{option.label}</option>
-      ))}
-    </select>
-    {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
-  </div>
-));
-
-// Move TextAreaField outside and memoize it
-const TextAreaField = memo(({ label, name, value, onChange, placeholder, required = false, error, className = "", rows = 3 }) => (
-  <div className={className}>
-    <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-    <textarea
-      name={name}
-      value={value}
-      onChange={onChange}
-      className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all duration-200 ${
-        error 
-          ? 'border-red-300 focus:border-red-500 bg-red-50' 
-          : 'border-gray-200 focus:border-slate-600 bg-gray-50 focus:bg-white'
-      }`}
-      placeholder={placeholder}
-      rows={rows}
-      required={required}
-    />
-    {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
-  </div>
-));
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
 const SignupForm = () => {
   const [formData, setFormData] = useState({
@@ -92,49 +22,57 @@ const SignupForm = () => {
   });
   
   const [institutionData, setInstitutionData] = useState({
-    confirmPassword: '',
+    // Basic Information
     institutionName: '',
     institutionType: '',
-    establishedYear: '',
     description: '',
+    establishedYear: '',
+    // Owner Information
     ownerName: '',
     ownerEmail: '',
+    // Contact Person
     contactName: '',
     contactDesignation: '',
     contactPhone: '',
     contactEmail: '',
+    // Address
     street: '',
     city: '',
     state: '',
     country: '',
     zipCode: '',
     fullAddress: '',
-    googleMapsLink: ''
+    googleMapsLink: '',
+    // Password
+    confirmPassword: ''
   });
   
-  const [currentStep, setCurrentStep] = useState(0);
   const [error, setError] = useState('');
-  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // OTP related state
+  const [showOTPVerification, setShowOTPVerification] = useState(false);
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
+  const [sendingOTP, setSendingOTP] = useState(false);
+  const otpRefs = useRef([]);
+  
   const navigate = useNavigate();
   const location = useLocation();
   
   const redirectPath = location.state?.from || '/';
   const requiredRole = location.state?.requiredRole;
   
-  useEffect(() => {
-    if (requiredRole) {
-      setFormData(prev => ({ ...prev, role: requiredRole }));
-      if (requiredRole === 'institution') {
-        setCurrentStep(1);
-      }
-    }
-  }, [requiredRole]);
-
-  const institutionSteps = [
+  // Constants
+  const steps = [
     { number: 1, title: 'Account Setup', icon: User },
     { number: 2, title: 'Institution Info', icon: Building2 },
     { number: 3, title: 'Owner Details', icon: User },
@@ -151,8 +89,8 @@ const SignupForm = () => {
     { value: 'other', label: 'Other' }
   ];
 
-  // Use useCallback to memoize handleChange
-  const handleChange = useCallback((e) => {
+  // Handle change function
+  const handleChange = (e) => {
     const { name, value } = e.target;
     
     if (name === 'role') {
@@ -180,7 +118,189 @@ const SignupForm = () => {
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
-  }, [formData.role, errors]);
+  };
+  
+  // Timer effect for OTP resend
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendTimer]);
+  
+  // OTP related functions
+  const handleOtpChange = (index, value) => {
+    if (value.length <= 1 && /^\d*$/.test(value)) {
+      const newOtp = [...otp];
+      newOtp[index] = value;
+      setOtp(newOtp);
+      
+      // Auto-focus next input
+      if (value && index < 5) {
+        otpRefs.current[index + 1]?.focus();
+      }
+    }
+  };
+  
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').slice(0, 6);
+    if (/^\d+$/.test(pastedData)) {
+      const newOtp = pastedData.split('');
+      setOtp(newOtp);
+      otpRefs.current[5]?.focus();
+    }
+  };
+  
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+  };
+  
+  const sendOTP = async () => {
+    setSendingOTP(true);
+    setOtpError('');
+    
+    try {
+      const response = await api.post('/api/auth/send-otp', {
+        email: formData.email,
+        name: formData.role === 'institution' ? institutionData.institutionName : formData.name,
+        role: formData.role
+      });
+      
+      if (response.data.success) {
+        setShowOTPVerification(true);
+        setResendTimer(60);
+        setOtp(['', '', '', '', '', '']);
+      }
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to send OTP');
+    } finally {
+      setSendingOTP(false);
+    }
+  };
+  
+  const verifyOTP = async () => {
+    const otpString = otp.join('');
+    if (otpString.length !== 6) {
+      setOtpError('Please enter complete OTP');
+      return;
+    }
+    
+    setOtpLoading(true);
+    setOtpError('');
+    
+    try {
+      const response = await api.post('/api/auth/verify-otp', {
+        otp: otpString,
+        email: formData.email
+      });
+      
+      if (response.data.success) {
+        setIsEmailVerified(true);
+        setShowOTPVerification(false);
+        // Don't call handleSubmit here - just mark as verified
+        // The user will see the success indicators and the form will auto-submit
+      }
+    } catch (error) {
+      setOtpError(error.response?.data?.message || 'Invalid OTP');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+  
+  // Loading overlay for OTP sending
+  const LoadingOverlay = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 shadow-xl">
+        <div className="flex flex-col items-center">
+          <Mail className="w-12 h-12 text-gray-700 mb-4 animate-bounce" />
+          <Loader2 className="w-8 h-8 text-gray-700 animate-spin mb-4" />
+          <p className="text-lg font-semibold text-gray-800">Sending OTP...</p>
+          <p className="text-sm text-gray-600 mt-2">Please wait while we send the verification code</p>
+        </div>
+      </div>
+    </div>
+  );
+  
+  // OTP Verification Modal
+  const renderOTPVerification = () => {
+    if (!showOTPVerification) return null;
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <Card className="w-full max-w-md bg-white">
+          <CardHeader>
+            <CardTitle className="text-center text-2xl">Verify Your Email</CardTitle>
+            <CardDescription className="text-center">
+              We've sent a 6-digit code to<br />
+              <span className="font-semibold text-gray-900">{formData.email}</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex justify-center space-x-2">
+              {otp.map((digit, index) => (
+                <Input
+                  key={index}
+                  ref={el => otpRefs.current[index] = el}
+                  type="text"
+                  value={digit}
+                  onChange={(e) => handleOtpChange(index, e.target.value)}
+                  onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                  onPaste={index === 0 ? handleOtpPaste : undefined}
+                  className="w-12 h-12 text-center text-xl border-2 focus:border-gray-700"
+                  maxLength="1"
+                />
+              ))}
+            </div>
+            
+            {otpError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{otpError}</AlertDescription>
+              </Alert>
+            )}
+            
+            <Button
+              onClick={verifyOTP}
+              disabled={otpLoading || otp.join('').length !== 6}
+              className="w-full bg-gray-700 hover:bg-gray-800 text-white"
+            >
+              {otpLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {otpLoading ? 'Verifying...' : 'Verify OTP'}
+            </Button>
+            
+            <div className="text-center">
+              {resendTimer > 0 ? (
+                <p className="text-sm text-gray-500">Resend OTP in {resendTimer}s</p>
+              ) : (
+                <Button
+                  variant="link"
+                  onClick={sendOTP}
+                  disabled={otpLoading}
+                  className="text-gray-700 hover:text-gray-800"
+                >
+                  Resend OTP
+                </Button>
+              )}
+            </div>
+            
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowOTPVerification(false);
+                setOtpError('');
+              }}
+              className="w-full"
+            >
+              Cancel
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
 
   const validateInstitutionStep = (step) => {
     const newErrors = {};
@@ -219,7 +339,6 @@ const SignupForm = () => {
       case 5:
         if (!institutionData.fullAddress) newErrors.fullAddress = 'Full address is required';
         if (!institutionData.googleMapsLink) newErrors.googleMapsLink = 'Google Maps link is required';
-        // More flexible Google Maps link validation - accept various formats
         else if (institutionData.googleMapsLink && 
                  !institutionData.googleMapsLink.includes('google.com/maps') && 
                  !institutionData.googleMapsLink.includes('maps.google.com') && 
@@ -252,88 +371,107 @@ const SignupForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
     
-    try {
-      // Regular signup for aspirants and admins
+    // Prevent double submission
+    if (loading || sendingOTP) {
+      return;
+    }
+    
+    // If email not verified, send OTP first
+    if (!isEmailVerified) {
+      // Validate email before sending OTP
+      if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) {
+        setError('Please enter a valid email address');
+        return;
+      }
+      
+      // For regular signup, also validate name and password before sending OTP
       if (formData.role !== 'institution') {
-        if (!formData.name || !formData.email || !formData.password) {
-          setError('Please fill all fields');
-          setLoading(false);
+        if (!formData.name || !formData.password) {
+          setError('Please fill all fields before verifying email');
           return;
         }
         
         if (formData.role === 'admin' && !formData.adminCode) {
           setError('Admin code is required');
-          setLoading(false);
           return;
         }
       }
       
+      await sendOTP();
+      return;
+    }
+    
+    // If email is already verified, proceed with signup
+    setError('');
+    setLoading(true);
+    
+    try {
       // Prepare signup data based on role
       let signupData;
       
       if (formData.role === 'institution') {
-  // Validate all institution fields
-  const finalErrors = {};
-  for (let i = 1; i <= 5; i++) {
-    Object.assign(finalErrors, validateInstitutionStep(i));
-  }
-  
-  if (Object.keys(finalErrors).length > 0) {
-    setErrors(finalErrors);
-    setError('Please complete all required fields');
-    setLoading(false);
-    return;
-  }
-  
-  // Build full address if not provided
-  const fullAddress = institutionData.fullAddress || [
-    institutionData.street,
-    institutionData.city,
-    institutionData.state,
-    institutionData.country,
-    institutionData.zipCode
-  ].filter(Boolean).join(', ');
-  
-  signupData = {
-    role: 'institution',
-    email: formData.email,
-    password: formData.password,
-    name: institutionData.institutionName,
-    institutionProfile: {
-      institutionName: institutionData.institutionName,
-      institutionType: institutionData.institutionType,
-      description: institutionData.description,
-      establishedYear: institutionData.establishedYear,
-      owner: {
-        name: institutionData.ownerName,
-        email: institutionData.ownerEmail
-      },
-      contactPerson: {
-        name: institutionData.contactName,
-        designation: institutionData.contactDesignation,
-        phone: institutionData.contactPhone,
-        email: institutionData.contactEmail
-      },
-      address: {
-        street: institutionData.street,
-        city: institutionData.city,
-        state: institutionData.state,
-        country: institutionData.country,
-        zipCode: institutionData.zipCode,
-        fullAddress: fullAddress
-      },
-      googleMapsLink: institutionData.googleMapsLink
-    }
-  };
-} else {
+        // Validate all institution fields
+        const finalErrors = {};
+        for (let i = 1; i <= 5; i++) {
+          Object.assign(finalErrors, validateInstitutionStep(i));
+        }
+        
+        if (Object.keys(finalErrors).length > 0) {
+          setErrors(finalErrors);
+          setError('Please complete all required fields');
+          setLoading(false);
+          return;
+        }
+        
+        // Build full address if not provided
+        const fullAddress = institutionData.fullAddress || [
+          institutionData.street,
+          institutionData.city,
+          institutionData.state,
+          institutionData.country,
+          institutionData.zipCode
+        ].filter(Boolean).join(', ');
+        
+        signupData = {
+          role: 'institution',
+          email: formData.email,
+          password: formData.password,
+          name: institutionData.institutionName,
+          isEmailVerified: true,
+          institutionProfile: {
+            institutionName: institutionData.institutionName,
+            institutionType: institutionData.institutionType,
+            description: institutionData.description,
+            establishedYear: institutionData.establishedYear,
+            owner: {
+              name: institutionData.ownerName,
+              email: institutionData.ownerEmail
+            },
+            contactPerson: {
+              name: institutionData.contactName,
+              designation: institutionData.contactDesignation,
+              phone: institutionData.contactPhone,
+              email: institutionData.contactEmail
+            },
+            address: {
+              street: institutionData.street,
+              city: institutionData.city,
+              state: institutionData.state,
+              country: institutionData.country,
+              zipCode: institutionData.zipCode,
+              fullAddress: fullAddress
+            },
+            googleMapsLink: institutionData.googleMapsLink
+          }
+        };
+      } else {
         signupData = {
           name: formData.name,
           email: formData.email,
           password: formData.password,
           role: formData.role,
+          isEmailVerified: true,
           adminCode: formData.role === 'admin' ? formData.adminCode : undefined
         };
       }
@@ -384,48 +522,82 @@ const SignupForm = () => {
         return (
           <div className="space-y-6">
             <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold text-slate-800">Create Your Account</h3>
+              <h3 className="text-2xl font-bold text-gray-900">Create Your Account</h3>
               <p className="text-gray-600 mt-2">Set up your institution account credentials</p>
             </div>
             
-            <InputField
-              label="Email Address"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="institution@example.com"
-              required
-              error={errors.email}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-gray-700">Email Address</Label>
+              <div className="relative">
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="institution@example.com"
+                  className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.email ? "border-red-500" : ""} ${isEmailVerified ? "pr-10" : ""}`}
+                  disabled={isEmailVerified}
+                />
+                {isEmailVerified && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    <Check className="w-5 h-5 text-green-600" />
+                  </div>
+                )}
+              </div>
+              {errors.email && <p className="text-sm text-red-500">{errors.email}</p>}
+              {isEmailVerified && <p className="text-sm text-green-600">Email verified ✓</p>}
+            </div>
             
-            <InputField
-              label="Password"
-              name="password"
-              type={showPassword ? "text" : "password"}
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="Enter a strong password"
-              required
-              error={errors.password}
-              showPasswordToggle
-              showPassword={showPassword}
-              onTogglePassword={() => setShowPassword(!showPassword)}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-gray-700">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="Enter a strong password"
+                  className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.password ? "border-red-500" : ""}`}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-gray-500" />}
+                </Button>
+              </div>
+              {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
+            </div>
             
-            <InputField
-              label="Confirm Password"
-              name="confirmPassword"
-              type={showConfirmPassword ? "text" : "password"}
-              value={institutionData.confirmPassword}
-              onChange={handleChange}
-              placeholder="Re-enter your password"
-              required
-              error={errors.confirmPassword}
-              showPasswordToggle
-              showPassword={showConfirmPassword}
-              onTogglePassword={() => setShowConfirmPassword(!showConfirmPassword)}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword" className="text-gray-700">Confirm Password</Label>
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={institutionData.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Re-enter your password"
+                  className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.confirmPassword ? "border-red-500" : ""}`}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-gray-500" />}
+                </Button>
+              </div>
+              {errors.confirmPassword && <p className="text-sm text-red-500">{errors.confirmPassword}</p>}
+            </div>
           </div>
         );
         
@@ -433,47 +605,68 @@ const SignupForm = () => {
         return (
           <div className="space-y-6">
             <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold text-slate-800">Institution Information</h3>
+              <h3 className="text-2xl font-bold text-gray-900">Institution Details</h3>
               <p className="text-gray-600 mt-2">Tell us about your institution</p>
             </div>
             
-            <InputField
-              label="Institution Name"
-              name="institutionName"
-              value={institutionData.institutionName}
-              onChange={handleChange}
-              placeholder="Enter your institution name"
-              required
-              error={errors.institutionName}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="institutionName" className="text-gray-700">Institution Name</Label>
+              <Input
+                id="institutionName"
+                name="institutionName"
+                value={institutionData.institutionName}
+                onChange={handleChange}
+                placeholder="Enter your institution name"
+                className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.institutionName ? "border-red-500" : ""}`}
+              />
+              {errors.institutionName && <p className="text-sm text-red-500">{errors.institutionName}</p>}
+            </div>
             
-            <SelectField
-              label="Institution Type"
-              name="institutionType"
-              value={institutionData.institutionType}
-              onChange={handleChange}
-              options={institutionTypes}
-              placeholder="Select institution type"
-              required
-              error={errors.institutionType}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="institutionType" className="text-gray-700">Institution Type</Label>
+              <Select 
+                value={institutionData.institutionType}
+                onValueChange={(value) => handleChange({ target: { name: 'institutionType', value } })}
+              >
+                <SelectTrigger className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.institutionType ? "border-red-500" : ""}`}>
+                  <SelectValue placeholder="Select institution type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {institutionTypes.map(type => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.institutionType && <p className="text-sm text-red-500">{errors.institutionType}</p>}
+            </div>
             
-            <InputField
-              label="Established Year (Optional)"
-              name="establishedYear"
-              type="number"
-              value={institutionData.establishedYear}
-              onChange={handleChange}
-              placeholder="e.g., 1995"
-            />
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-gray-700">Description (Optional)</Label>
+              <Textarea
+                id="description"
+                name="description"
+                value={institutionData.description}
+                onChange={handleChange}
+                placeholder="Brief description of your institution"
+                rows={4}
+                className="border-gray-300 focus:border-gray-700 focus:ring-gray-700"
+              />
+            </div>
             
-            <TextAreaField
-              label="Description (Optional)"
-              name="description"
-              value={institutionData.description}
-              onChange={handleChange}
-              placeholder="Brief description of your institution"
-            />
+            <div className="space-y-2">
+              <Label htmlFor="establishedYear" className="text-gray-700">Established Year (Optional)</Label>
+              <Input
+                id="establishedYear"
+                name="establishedYear"
+                type="number"
+                value={institutionData.establishedYear}
+                onChange={handleChange}
+                placeholder="e.g., 2010"
+                className="border-gray-300 focus:border-gray-700 focus:ring-gray-700"
+              />
+            </div>
           </div>
         );
         
@@ -481,43 +674,43 @@ const SignupForm = () => {
         return (
           <div className="space-y-6">
             <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold text-slate-800">Owner Details</h3>
-              <p className="text-gray-600 mt-2">Information about the institution owner</p>
+              <h3 className="text-2xl font-bold text-gray-900">Owner Information</h3>
+              <p className="text-gray-600 mt-2">Institution owner details</p>
             </div>
             
-            <InputField
-              label="Owner Name"
-              name="ownerName"
-              value={institutionData.ownerName}
-              onChange={handleChange}
-              placeholder="Full name of the owner"
-              required
-              error={errors.ownerName}
-            />
-            
-            <InputField
-              label="Owner Email"
-              name="ownerEmail"
-              type="email"
-              value={institutionData.ownerEmail}
-              onChange={handleChange}
-              placeholder="owner@example.com"
-              required
-              error={errors.ownerEmail}
-            />
-            
-            <div className="bg-blue-50 border-l-4 border-blue-400 rounded-lg p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <AlertCircle className="h-5 w-5 text-blue-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-blue-700">
-                    <strong>Privacy Note:</strong> Owner details are only visible to administrators for verification purposes and will be kept confidential.
-                  </p>
-                </div>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="ownerName" className="text-gray-700">Owner Name</Label>
+              <Input
+                id="ownerName"
+                name="ownerName"
+                value={institutionData.ownerName}
+                onChange={handleChange}
+                placeholder="Full name of the owner"
+                className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.ownerName ? "border-red-500" : ""}`}
+              />
+              {errors.ownerName && <p className="text-sm text-red-500">{errors.ownerName}</p>}
             </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="ownerEmail" className="text-gray-700">Owner Email</Label>
+              <Input
+                id="ownerEmail"
+                name="ownerEmail"
+                type="email"
+                value={institutionData.ownerEmail}
+                onChange={handleChange}
+                placeholder="owner@example.com"
+                className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.ownerEmail ? "border-red-500" : ""}`}
+              />
+              {errors.ownerEmail && <p className="text-sm text-red-500">{errors.ownerEmail}</p>}
+            </div>
+            
+            <Alert className="bg-blue-50 border-blue-200">
+              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800">
+                <strong>Privacy Note:</strong> Owner details are only visible to administrators for verification purposes and will be kept confidential.
+              </AlertDescription>
+            </Alert>
           </div>
         );
         
@@ -525,54 +718,66 @@ const SignupForm = () => {
         return (
           <div className="space-y-6">
             <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold text-slate-800">Contact Person</h3>
+              <h3 className="text-2xl font-bold text-gray-900">Contact Person</h3>
               <p className="text-gray-600 mt-2">Primary contact for communications</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <InputField
-                label="Contact Person Name"
-                name="contactName"
-                value={institutionData.contactName}
-                onChange={handleChange}
-                placeholder="Full name"
-                required
-                error={errors.contactName}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="contactName" className="text-gray-700">Contact Person Name</Label>
+                <Input
+                  id="contactName"
+                  name="contactName"
+                  value={institutionData.contactName}
+                  onChange={handleChange}
+                  placeholder="Full name"
+                  className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.contactName ? "border-red-500" : ""}`}
+                />
+                {errors.contactName && <p className="text-sm text-red-500">{errors.contactName}</p>}
+              </div>
               
-              <InputField
-                label="Designation"
-                name="contactDesignation"
-                value={institutionData.contactDesignation}
-                onChange={handleChange}
-                placeholder="e.g., Director, Administrator"
-                required
-                error={errors.contactDesignation}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="contactDesignation" className="text-gray-700">Designation</Label>
+                <Input
+                  id="contactDesignation"
+                  name="contactDesignation"
+                  value={institutionData.contactDesignation}
+                  onChange={handleChange}
+                  placeholder="e.g., Director, Administrator"
+                  className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.contactDesignation ? "border-red-500" : ""}`}
+                />
+                {errors.contactDesignation && <p className="text-sm text-red-500">{errors.contactDesignation}</p>}
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <InputField
-                label="Phone Number"
-                name="contactPhone"
-                type="tel"
-                value={institutionData.contactPhone}
-                onChange={handleChange}
-                placeholder="+1234567890"
-                required
-                error={errors.contactPhone}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="contactPhone" className="text-gray-700">Phone Number</Label>
+                <Input
+                  id="contactPhone"
+                  name="contactPhone"
+                  type="tel"
+                  value={institutionData.contactPhone}
+                  onChange={handleChange}
+                  placeholder="+1234567890"
+                  className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.contactPhone ? "border-red-500" : ""}`}
+                />
+                {errors.contactPhone && <p className="text-sm text-red-500">{errors.contactPhone}</p>}
+              </div>
               
-              <InputField
-                label="Contact Email"
-                name="contactEmail"
-                type="email"
-                value={institutionData.contactEmail}
-                onChange={handleChange}
-                placeholder="contact@institution.com"
-                required
-                error={errors.contactEmail}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="contactEmail" className="text-gray-700">Contact Email</Label>
+                <Input
+                  id="contactEmail"
+                  name="contactEmail"
+                  type="email"
+                  value={institutionData.contactEmail}
+                  onChange={handleChange}
+                  placeholder="contact@institution.com"
+                  className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.contactEmail ? "border-red-500" : ""}`}
+                />
+                {errors.contactEmail && <p className="text-sm text-red-500">{errors.contactEmail}</p>}
+              </div>
             </div>
           </div>
         );
@@ -581,76 +786,99 @@ const SignupForm = () => {
         return (
           <div className="space-y-6">
             <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold text-slate-800">Location Details</h3>
+              <h3 className="text-2xl font-bold text-gray-900">Location Details</h3>
               <p className="text-gray-600 mt-2">Where is your institution located?</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <InputField
-                label="Street Address"
-                name="street"
-                value={institutionData.street}
-                onChange={handleChange}
-                placeholder="Street address"
-              />
+              <div className="space-y-2">
+                <Label htmlFor="street" className="text-gray-700">Street Address</Label>
+                <Input
+                  id="street"
+                  name="street"
+                  value={institutionData.street}
+                  onChange={handleChange}
+                  placeholder="Street address"
+                  className="border-gray-300 focus:border-gray-700 focus:ring-gray-700"
+                />
+              </div>
               
-              <InputField
-                label="City"
-                name="city"
-                value={institutionData.city}
-                onChange={handleChange}
-                placeholder="City"
-              />
+              <div className="space-y-2">
+                <Label htmlFor="city" className="text-gray-700">City</Label>
+                <Input
+                  id="city"
+                  name="city"
+                  value={institutionData.city}
+                  onChange={handleChange}
+                  placeholder="City"
+                  className="border-gray-300 focus:border-gray-700 focus:ring-gray-700"
+                />
+              </div>
               
-              <InputField
-                label="State/Province"
-                name="state"
-                value={institutionData.state}
-                onChange={handleChange}
-                placeholder="State"
-              />
+              <div className="space-y-2">
+                <Label htmlFor="state" className="text-gray-700">State/Province</Label>
+                <Input
+                  id="state"
+                  name="state"
+                  value={institutionData.state}
+                  onChange={handleChange}
+                  placeholder="State"
+                  className="border-gray-300 focus:border-gray-700 focus:ring-gray-700"
+                />
+              </div>
               
-              <InputField
-                label="Country"
-                name="country"
-                value={institutionData.country}
+              <div className="space-y-2">
+                <Label htmlFor="country" className="text-gray-700">Country</Label>
+                <Input
+                  id="country"
+                  name="country"
+                  value={institutionData.country}
+                  onChange={handleChange}
+                  placeholder="Country"
+                  className="border-gray-300 focus:border-gray-700 focus:ring-gray-700"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2 md:w-1/2">
+              <Label htmlFor="zipCode" className="text-gray-700">ZIP/Postal Code</Label>
+              <Input
+                id="zipCode"
+                name="zipCode"
+                value={institutionData.zipCode}
                 onChange={handleChange}
-                placeholder="Country"
+                placeholder="ZIP code"
+                className="border-gray-300 focus:border-gray-700 focus:ring-gray-700"
               />
             </div>
             
-            <InputField
-              label="ZIP/Postal Code"
-              name="zipCode"
-              value={institutionData.zipCode}
-              onChange={handleChange}
-              placeholder="ZIP code"
-              className="md:w-1/2"
-            />
+            <div className="space-y-2">
+              <Label htmlFor="fullAddress" className="text-gray-700">Full Address</Label>
+              <Textarea
+                id="fullAddress"
+                name="fullAddress"
+                value={institutionData.fullAddress}
+                onChange={handleChange}
+                placeholder="Complete address including landmarks"
+                rows={2}
+                className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.fullAddress ? "border-red-500" : ""}`}
+              />
+              {errors.fullAddress && <p className="text-sm text-red-500">{errors.fullAddress}</p>}
+            </div>
             
-            <TextAreaField
-              label="Full Address"
-              name="fullAddress"
-              value={institutionData.fullAddress}
-              onChange={handleChange}
-              placeholder="Complete address including landmarks"
-              required
-              error={errors.fullAddress}
-              rows={2}
-            />
-            
-            <div>
-              <InputField
-                label="Google Maps Link"
+            <div className="space-y-2">
+              <Label htmlFor="googleMapsLink" className="text-gray-700">Google Maps Link</Label>
+              <Input
+                id="googleMapsLink"
                 name="googleMapsLink"
                 type="url"
                 value={institutionData.googleMapsLink}
                 onChange={handleChange}
                 placeholder="https://maps.google.com/..."
-                required
-                error={errors.googleMapsLink}
+                className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${errors.googleMapsLink ? "border-red-500" : ""}`}
               />
-              <p className="text-sm text-gray-500 mt-2">
+              {errors.googleMapsLink && <p className="text-sm text-red-500">{errors.googleMapsLink}</p>}
+              <p className="text-sm text-gray-500">
                 Go to Google Maps, find your location, click Share and copy the link
               </p>
             </div>
@@ -662,263 +890,281 @@ const SignupForm = () => {
   // Success screen for institutions
   if (success && formData.role === 'institution') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-        <div className="max-w-lg w-full">
-          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Check className="w-10 h-10 text-green-600" />
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center py-12 px-4">
+        <Card className="w-full max-w-lg bg-white shadow-2xl">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Check className="w-10 h-10 text-green-600" />
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">Registration Successful!</h2>
+              <p className="text-gray-600 mb-8 text-lg">
+                Your institution has been registered successfully. Please wait for admin verification before accessing the dashboard.
+              </p>
+              <Alert className="mb-6 bg-blue-50 border-blue-200">
+                <AlertDescription className="text-blue-800">
+                  You will receive an email notification once your account is verified by our team. This usually takes 1-2 business days.
+                </AlertDescription>
+              </Alert>
+              <Button 
+                onClick={() => navigate('/login')} 
+                className="w-full bg-gray-700 hover:bg-gray-800 text-white font-semibold py-3"
+              >
+                Go to Login
+              </Button>
             </div>
-            <h2 className="text-3xl font-bold text-slate-800 mb-4">Registration Successful!</h2>
-            <p className="text-gray-600 mb-8 text-lg">
-              Your institution has been registered successfully. Please wait for admin verification before accessing the dashboard.
-            </p>
-            <div className="bg-blue-50 rounded-lg p-6 mb-8">
-              <h3 className="font-semibold text-gray-800 mb-3">What happens next?</h3>
-              <ul className="text-left text-gray-700 space-y-2">
-                <li className="flex items-start">
-                  <span className="text-blue-500 mr-2">✓</span>
-                  <span>We'll review your institution details within 24-48 hours</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-blue-500 mr-2">✓</span>
-                  <span>You'll receive an email notification once verified</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-blue-500 mr-2">✓</span>
-                  <span>After verification, you can log in and start creating courses</span>
-                </li>
-              </ul>
-            </div>
-            <button
-              onClick={() => navigate('/login')}
-              className="bg-slate-700 text-white px-8 py-3 rounded-lg hover:bg-slate-800 transition-colors font-medium"
-            >
-              Go to Login
-            </button>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-6 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-6xl mx-auto">
-        {formData.role === 'institution' ? (
-          // Institution multi-step signup
-          <div className="bg-white shadow-2xl rounded-2xl overflow-hidden">
-            {/* Progress Bar */}
-            <div className="bg-gradient-to-r from-slate-600 to-slate-800 p-6">
-              <div className="flex items-center justify-between mb-8">
-                {institutionSteps.map((step, index) => (
-                  <div key={step.number} className="flex items-center">
-                    <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
-                      currentStep >= step.number 
-                        ? 'bg-white text-slate-700' 
-                        : 'bg-slate-500 text-white'
-                    } transition-all duration-300`}>
-                      {currentStep > step.number ? (
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      {/* Loading Overlay */}
+      {sendingOTP && <LoadingOverlay />}
+      
+      <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
+        {formData.role === 'institution' && !success ? (
+          // Institution multi-step form
+          <Card className="shadow-2xl bg-white">
+            {/* Progress bar */}
+            <CardHeader className="bg-gradient-to-r from-gray-700 to-gray-800 text-white">
+              <div className="flex items-center justify-between mb-4">
+                <CardTitle className="text-2xl">Institution Registration</CardTitle>
+                <span className="text-sm text-gray-300">Step {currentStep} of 5</span>
+              </div>
+              <Progress value={(currentStep / 5) * 100} className="h-2 bg-gray-600" />
+              {/* Step indicators */}
+              <div className="flex justify-between mt-6">
+                {steps.map((step) => (
+                  <div 
+                    key={step.number}
+                    className={`flex flex-col items-center ${
+                      step.number <= currentStep ? 'text-white' : 'text-gray-400'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
+                      step.number < currentStep ? 'bg-white text-gray-700' :
+                      step.number === currentStep ? 'bg-white text-gray-700' :
+                      'bg-gray-600'
+                    }`}>
+                      {step.number < currentStep ? (
                         <Check className="w-5 h-5" />
                       ) : (
                         <step.icon className="w-5 h-5" />
                       )}
                     </div>
-                    {index < institutionSteps.length - 1 && (
-                      <div className={`w-12 sm:w-20 md:w-32 h-1 mx-2 ${
-                        currentStep > step.number 
-                          ? 'bg-white' 
-                          : 'bg-slate-500'
-                      } transition-all duration-300`} />
-                    )}
+                    <span className="text-xs font-medium hidden sm:block">{step.title}</span>
                   </div>
                 ))}
               </div>
-              
-              <div className="text-center text-white">
-                <h2 className="text-2xl font-bold">{institutionSteps[currentStep - 1]?.title}</h2>
-                <p className="text-slate-200 mt-1">Step {currentStep} of 5</p>
-              </div>
-            </div>
+            </CardHeader>
             
-            {/* Form Content */}
-            <div className="p-8">
+            {/* Form content */}
+            <CardContent className="p-8">
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-                  {error}
-                </div>
+                <Alert variant="destructive" className="mb-6">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
               
-              {renderInstitutionStep()}
+              {/* Show email verified status for institutions */}
+              {isEmailVerified && currentStep === 5 && (
+                <Alert className="mb-6 bg-green-50 border-green-200">
+                  <Check className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-800">
+                    Email verified successfully! Click "Complete Registration" to finish.
+                  </AlertDescription>
+                </Alert>
+              )}
               
-              {/* Navigation Buttons */}
+              <form onSubmit={(e) => e.preventDefault()}>
+                {renderInstitutionStep()}
+              </form>
+              
+              {/* Navigation buttons */}
               <div className="flex justify-between mt-8">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={() => currentStep > 1 ? setCurrentStep(currentStep - 1) : navigate('/login')}
-                  className="px-6 py-3 border-2 border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-50"
                 >
                   {currentStep === 1 ? 'Back to Login' : 'Previous'}
-                </button>
+                </Button>
                 
-                <button
+                <Button
                   type="button"
-                  onClick={handleInstitutionNext}
+                  onClick={currentStep === 5 && !isEmailVerified ? handleSubmit : handleInstitutionNext}
                   disabled={loading}
-                  className="px-6 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                  className="bg-gray-700 hover:bg-gray-800 text-white"
                 >
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {loading ? (
-                    <span>Processing...</span>
+                    'Processing...'
                   ) : currentStep === 5 ? (
-                    <>Complete Registration</>
+                    isEmailVerified ? 'Complete Registration' : 'Verify Email & Register'
                   ) : (
                     <>Next <ChevronRight className="w-4 h-4 ml-2" /></>
                   )}
-                </button>
+                </Button>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         ) : (
           // Regular signup form
-          <div className="bg-white p-6 sm:p-8 rounded-lg shadow-md w-full max-w-md mx-auto">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold mb-6 text-center text-gray-800">
-                Sign up for Civils HQ
-              </h2>
-            </div>
-            
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-                {error}
-              </div>
-            )}
-            
-            <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-              <div className="rounded-md shadow-sm -space-y-px">
-                <div className="mb-4">
-                  <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-                    I am registering as
-                  </label>
-                  <select
-                    id="role"
-                    name="role"
+          <Card className="w-full max-w-md mx-auto shadow-2xl bg-white">
+            <CardHeader className="bg-gradient-to-r from-gray-700 to-gray-800 text-white text-center">
+              <CardTitle className="text-2xl">Sign up for Civils HQ</CardTitle>
+            </CardHeader>
+            <CardContent className="p-8">
+              {error && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              
+              {/* Show email verified message */}
+              {isEmailVerified && (
+                <Alert className="mb-4 bg-green-50 border-green-200">
+                  <Check className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-800">
+                    Email verified successfully! Click Sign Up to complete registration.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              <form className="space-y-6" onSubmit={handleSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="role" className="text-gray-700">I am registering as</Label>
+                  <Select
                     value={formData.role}
-                    onChange={handleChange}
-                    className="appearance-none rounded relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                    onValueChange={(value) => handleChange({ target: { name: 'role', value } })}
                   >
-                    <option value="aspirant">Aspirant</option>
-                    <option value="institution">Institution</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                    <SelectTrigger className="border-gray-300 focus:border-gray-700 focus:ring-gray-700">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="aspirant">Aspirant</SelectItem>
+                      <SelectItem value="institution">Institution</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 
                 {formData.role !== 'institution' && (
                   <>
-                    <div className="mb-4">
-                      <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                        Name
-                      </label>
-                      <input
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-gray-700">Full Name</Label>
+                      <Input
                         id="name"
                         name="name"
                         type="text"
-                        required
                         value={formData.name}
                         onChange={handleChange}
-                        className="appearance-none rounded relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                         placeholder="Full name"
-                      />
-                    </div>
-                    
-                    <div className="mb-4">
-                      <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                        Email address
-                      </label>
-                      <input
-                        id="email"
-                        name="email"
-                        type="email"
-                        autoComplete="email"
                         required
-                        value={formData.email}
-                        onChange={handleChange}
-                        className="appearance-none rounded relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                        placeholder="Email address"
+                        className="border-gray-300 focus:border-gray-700 focus:ring-gray-700"
                       />
                     </div>
                     
-                    <div className="mb-4">
-                      <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                        Password
-                      </label>
-                      <input
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-gray-700">Email Address</Label>
+                      <div className="relative">
+                        <Input
+                          id="email"
+                          name="email"
+                          type="email"
+                          value={formData.email}
+                          onChange={handleChange}
+                          placeholder="Email address"
+                          required
+                          className={`border-gray-300 focus:border-gray-700 focus:ring-gray-700 ${isEmailVerified ? "pr-10" : ""}`}
+                          disabled={isEmailVerified}
+                        />
+                        {isEmailVerified && (
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                            <Check className="w-5 h-5 text-green-600" />
+                          </div>
+                        )}
+                      </div>
+                      {isEmailVerified && <p className="text-sm text-green-600">Email verified ✓</p>}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="password" className="text-gray-700">Password</Label>
+                      <Input
                         id="password"
                         name="password"
                         type="password"
-                        autoComplete="new-password"
-                        required
                         value={formData.password}
                         onChange={handleChange}
-                        className="appearance-none rounded relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                         placeholder="Password"
+                        required
+                        className="border-gray-300 focus:border-gray-700 focus:ring-gray-700"
                       />
                     </div>
                     
                     {formData.role === 'admin' && (
-                      <div className="mb-4">
-                        <label htmlFor="adminCode" className="block text-sm font-medium text-gray-700 mb-2">
-                          Admin Code
-                        </label>
-                        <input
+                      <div className="space-y-2">
+                        <Label htmlFor="adminCode" className="text-gray-700">Admin Code</Label>
+                        <Input
                           id="adminCode"
                           name="adminCode"
                           type="password"
-                          required
                           value={formData.adminCode}
                           onChange={handleChange}
-                          className="appearance-none rounded relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                           placeholder="Enter admin code"
+                          required
+                          className="border-gray-300 focus:border-gray-700 focus:ring-gray-700"
                         />
                       </div>
                     )}
                   </>
                 )}
-              </div>
 
-              {formData.role !== 'institution' && (
-                <div>
-                  <button
-                    type="submit"
+                {formData.role !== 'institution' && (
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-gray-700 hover:bg-gray-800 text-white font-semibold py-3" 
                     disabled={loading}
-                    className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-gray-700 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {loading ? 'Creating Account...' : 'Sign Up'}
-                  </button>
-                </div>
-              )}
-            </form>
-            
-            <div className="text-center mt-4">
-              <p className="text-sm text-gray-600">
-                Already have an account?{' '}
-                <a 
-                  href="/login" 
-                  className="font-medium text-gray-700 hover:text-gray-800"
-                  onClick={(e) => {
-                    if (requiredRole) {
-                      e.preventDefault();
-                      navigate('/login', { 
-                        state: { from: redirectPath, requiredRole } 
-                      });
-                    }
-                  }}
-                >
-                  Login
-                </a>
-              </p>
-            </div>
-          </div>
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {loading ? 'Creating Account...' : isEmailVerified ? 'Sign Up' : 'Verify Email & Sign Up'}
+                  </Button>
+                )}
+              </form>
+              
+              <div className="text-center mt-6">
+                <p className="text-sm text-gray-600">
+                  Already have an account?{' '}
+                  <Button
+                    variant="link"
+                    className="p-0 text-gray-700 hover:text-gray-800 font-semibold"
+                    onClick={() => {
+                      if (requiredRole) {
+                        navigate('/login', { 
+                          state: { from: redirectPath, requiredRole } 
+                        });
+                      } else {
+                        navigate('/login');
+                      }
+                    }}
+                  >
+                    Login
+                  </Button>
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
+      
+      {/* OTP Verification Modal */}
+      {renderOTPVerification()}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-// src/components/Navbar.jsx - Updated with React Router Link components
+// src/components/Navbar.jsx - Updated with Login and Register Now buttons
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ProfileDropdown from './ProfileDropdown';
@@ -148,9 +148,23 @@ const Navbar = () => {
             {isLoggedIn ? (
               <ProfileDropdown onLogout={handleLogout} />
             ) : (
-              <Link to="/login" className="ml-4 inline-flex items-center px-3 sm:px-4 py-2 border border-transparent rounded-md shadow-sm text-xs sm:text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 transform hover:scale-105">
-                Login/Signup
-              </Link>
+              <div className="flex items-center space-x-3">
+                {/* Login button with transparent background */}
+                <Link 
+                  to="/login" 
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-transparent border border-gray-300 rounded-md hover:bg-gray-50 hover:text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                >
+                  Login
+                </Link>
+                
+                {/* Register Now button */}
+                <Link 
+                  to="/signup" 
+                  className="px-4 py-2 text-sm font-medium text-white bg-gray-700 rounded-md shadow-sm hover:bg-gray-800 transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                >
+                  Register Now
+                </Link>
+              </div>
             )}
           </div>
           
@@ -218,14 +232,20 @@ const Navbar = () => {
             </button>
           </div> */}
           
-          {/* Login/Signup button for mobile */}
+          {/* Login/Signup buttons for mobile */}
           {!isLoggedIn && (
-            <div className="px-3 py-2 mt-2">
+            <div className="px-3 py-2 mt-2 space-y-2">
               <Link 
                 to="/login"
-                className="w-full flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200"
+                className="w-full flex justify-center items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-transparent hover:bg-gray-50 transition-all duration-200"
               >
-                Login/Signup
+                Login
+              </Link>
+              <Link 
+                to="/signup"
+                className="w-full flex justify-center items-center px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 transition-all duration-200"
+              >
+                Register Now
               </Link>
             </div>
           )}
