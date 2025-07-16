@@ -312,7 +312,7 @@ try {
           <div className="max-w-4xl mx-auto text-center mb-8 sm:mb-10">
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6">
               Find Your Perfect
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400"> UPSC Course</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500"> UPSC Course</span>
             </h1>
             <p className="text-base sm:text-lg md:text-xl text-gray-300 mb-6 sm:mb-8">
               Search from 1000+ courses by top institutes. Compare, review, and enroll in the best courses.
@@ -553,18 +553,18 @@ try {
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Ready to Start Your UPSC Journey?</h2>
           <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8 max-w-2xl mx-auto text-gray-300">
-            Join thousands of aspirants who have found their perfect course through CivilsHQ. Compare, review, and enroll today!
+            Join thousands of aspirants who have found their perfect course through civilshq.com Compare, review, and enroll today!
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/courses"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 sm:px-8 rounded text-base sm:text-lg transition"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold py-3 px-6 sm:px-8 rounded text-base sm:text-lg transition"
             >
               Browse All Courses
             </Link>
             <Link
               to="/signup"
-              className="bg-white text-gray-800 hover:bg-gray-100 font-bold py-3 px-6 sm:px-8 rounded text-base sm:text-lg transition"
+              className="bg-slate-200 text-gray-800 hover:bg-gray-100 font-bold py-3 px-6 sm:px-8 rounded text-base sm:text-lg transition"
             >
               Create Account
             </Link>
