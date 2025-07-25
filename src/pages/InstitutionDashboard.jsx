@@ -609,7 +609,7 @@ if (analyticsResponse.data.success && analyticsResponse.data.data) {
                   <h2 className="text-xl font-semibold text-gray-900">My Courses</h2>
                   <button 
                     onClick={() => setActiveTab('addCourse')}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+                    className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition"
                     disabled={!institutionData?.isVerified}
                   >
                     + Add New Course
@@ -1186,32 +1186,56 @@ if (analyticsResponse.data.success && analyticsResponse.data.data) {
 
 // Course Form Component
 const CourseForm = ({ mode, course, onCancel, onSuccess, setError, isVerified }) => {
-  const [formData, setFormData] = useState({
-    title: course?.title || '',
-    description: course?.description || '',
-    price: course?.price || '',
-    originalPrice: course?.originalPrice || '',
-    discount: course?.discount || 0,
-    duration: course?.duration || '1 month',
-    courseCategory: course?.courseCategory || 'prelims',
-    courseType: course?.courseType || ['online'],
-    subjects: course?.subjects?.join(', ') || '',
-    language: course?.courseLanguages || ['english'],
-    city: course?.city || '',
-    state: course?.state || '',
-    address: course?.address || '',
-    startDate: course?.startDate ? new Date(course.startDate).toISOString().split('T')[0] : '',
-    endDate: course?.endDate ? new Date(course.endDate).toISOString().split('T')[0] : '',
-    maxStudents: course?.maxStudents || 0,
-    deliveryType: course?.deliveryType || 'live',
-    isPublished: course?.isPublished || false,
-    tags: course?.tags?.join(', ') || '',
-    syllabusFile: null,
-    existingSyllabusFile: course?.syllabusFile || null,
-    faculty: course?.faculty || [{ name: '', qualification: '', experience: '', subject: '' }],
-    // Add schedule data to formData
-    schedule: course?.schedule || []
-  });
+ const [formData, setFormData] = useState({
+  // Basic Information (EXISTING - KEEP AS IS)
+  title: course?.title || '',
+  description: course?.description || '',
+  price: course?.price || '',
+  originalPrice: course?.originalPrice || '',
+  discount: course?.discount || 0,
+  duration: course?.duration || '1 month',
+  courseCategory: course?.courseCategory || 'prelims',
+  courseType: course?.courseType || ['online'],
+  subjects: course?.subjects?.join(', ') || '',
+  language: course?.courseLanguages || ['english'],
+  
+  // Location (EXISTING - KEEP AS IS)
+  city: course?.city || '',
+  state: course?.state || '',
+  address: course?.address || '',
+  
+  // Dates (EXISTING - KEEP AS IS)
+  startDate: course?.startDate ? new Date(course.startDate).toISOString().split('T')[0] : '',
+  endDate: course?.endDate ? new Date(course.endDate).toISOString().split('T')[0] : '',
+  
+  // Capacity & Type (EXISTING - KEEP AS IS)
+  maxStudents: course?.maxStudents || 0,
+  deliveryType: course?.deliveryType || 'live',
+  isPublished: course?.isPublished || false,
+  tags: course?.tags?.join(', ') || '',
+  
+  // ADD THESE NEW FIELDS:
+  highlights: course?.highlights?.join('\n') || '',
+  whatYouWillLearn: course?.whatYouWillLearn?.join('\n') || '',
+  prerequisites: course?.prerequisites?.join('\n') || '',
+  targetAudience: course?.targetAudience || '',
+  
+  // Files (KEEP EXISTING SYLLABUS + ADD NEW)
+  syllabusFile: null, // KEEP EXISTING
+  existingSyllabusFile: course?.syllabusFile || null, // KEEP EXISTING
+  coverImage: null, // NEW
+  existingCoverImage: course?.coverImage || null, // NEW
+  galleryImages: [], // NEW
+  existingGalleryImages: course?.galleryImages || [], // NEW
+  
+  // Structured Content (EXISTING - KEEP AS IS)
+  faculty: course?.faculty || [{ name: '', qualification: '', experience: '', subject: '' }],
+  schedule: course?.schedule || [],
+  syllabusDetails: course?.syllabusDetails || [], // NEW
+  
+  // Location Coordinates (NEW)
+  coordinates: course?.coordinates || { lat: null, lng: null }
+});
   
   const [loading, setLoading] = useState(false);
   const [fileError, setFileError] = useState('');
@@ -1260,35 +1284,25 @@ const CourseForm = ({ mode, course, onCancel, onSuccess, setError, isVerified })
   ];
 
   const handleChange = (e) => {
-    const { name, value, type, checked, files } = e.target;
-    
-    if (type === 'checkbox') {
-      if (name === 'courseType') {
-        const updatedCourseTypes = [...formData.courseType];
-        if (checked) {
-          updatedCourseTypes.push(value);
-        } else {
-          const index = updatedCourseTypes.indexOf(value);
-          if (index !== -1) {
-            updatedCourseTypes.splice(index, 1);
-          }
-        }
-        setFormData({ ...formData, courseType: updatedCourseTypes });
-      } else if (name === 'language') {
-        const updatedLanguages = [...formData.language];
-        if (checked) {
-          updatedLanguages.push(value);
-        } else {
-          const index = updatedLanguages.indexOf(value);
-          if (index !== -1) {
-            updatedLanguages.splice(index, 1);
-          }
-        }
-        setFormData({ ...formData, language: updatedLanguages });
-      } else {
-        setFormData({ ...formData, [name]: checked });
-      }
-    } else if (type === 'file') {
+   const { name, value, type, files, checked } = e.target;
+  
+   if (type === 'checkbox') {
+     if (name === 'isPublished') {
+       setFormData({ ...formData, [name]: checked });
+     } else if (name === 'courseType') {
+      const updatedTypes = checked
+        ? [...formData.courseType, value]
+        : formData.courseType.filter(t => t !== value);
+      setFormData({ ...formData, courseType: updatedTypes });
+     } else if (name === 'language') {
+      const updatedLanguages = checked
+        ? [...formData.language, value]
+        : formData.language.filter(l => l !== value);
+      setFormData({ ...formData, language: updatedLanguages });
+     }
+   } else if (type === 'file') {
+      if (name === 'syllabusFile') {
+      // EXISTING SYLLABUS FILE LOGIC - UNCHANGED
       if (files[0]) {
         const fileType = files[0].type;
         if (fileType !== 'application/pdf') {
@@ -1304,9 +1318,37 @@ const CourseForm = ({ mode, course, onCancel, onSuccess, setError, isVerified })
         setFileError('');
         setFormData({ ...formData, [name]: files[0] });
       }
-    } else {
-      setFormData({ ...formData, [name]: value });
+    } else if (name === 'coverImage') {
+      // NEW COVER IMAGE HANDLER
+      if (files[0]) {
+        const fileType = files[0].type;
+        if (!fileType.startsWith('image/')) {
+          setFileError('Cover image must be an image file');
+          return;
+        }
+        if (files[0].size > 5 * 1024 * 1024) {
+          setFileError('Image size should be less than 5MB');
+          return;
+        }
+        setFileError('');
+        setFormData({ ...formData, coverImage: files[0] });
+      }
+    } else if (name === 'galleryImages') {
+      // NEW GALLERY IMAGES HANDLER
+      const imageFiles = Array.from(files).filter(file => {
+        if (!file.type.startsWith('image/')) return false;
+        if (file.size > 5 * 1024 * 1024) return false;
+        return true;
+      });
+      if (imageFiles.length !== files.length) {
+        setFileError('Some files were skipped. Only images under 5MB are allowed.');
+        setTimeout(() => setFileError(''), 3000);
+      }
+      setFormData({ ...formData, galleryImages: imageFiles });
     }
+   } else {
+    setFormData({ ...formData, [name]: value });
+   }
   };
 
   const handleFacultyChange = (index, field, value) => {
@@ -1335,86 +1377,150 @@ const CourseForm = ({ mode, course, onCancel, onSuccess, setError, isVerified })
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    
-    try {
-      if (!formData.title || !formData.description || !formData.price || !formData.startDate || !formData.endDate) {
-        throw new Error('Please fill all required fields');
-      }
-      
-      if (new Date(formData.startDate) >= new Date(formData.endDate)) {
-        throw new Error('End date must be after start date');
-      }
-      
-      const subjects = formData.subjects
-        .split(',')
-        .map(subject => subject.trim())
-        .filter(subject => subject !== '');
-      
-      const tags = formData.tags
-        .split(',')
-        .map(tag => tag.trim())
-        .filter(tag => tag !== '');
-      
-      const courseData = new FormData();
-      courseData.append('title', formData.title);
-      courseData.append('description', formData.description);
-      courseData.append('price', formData.price);
-      courseData.append('originalPrice', formData.originalPrice || formData.price);
-      courseData.append('discount', formData.discount);
-      courseData.append('duration', formData.duration);
-      courseData.append('courseCategory', formData.courseCategory);
-      courseData.append('courseType', JSON.stringify(formData.courseType));
-      courseData.append('subjects', JSON.stringify(subjects));
-      courseData.append('courseLanguages', JSON.stringify(formData.language));
-      courseData.append('city', formData.city);
-      courseData.append('state', formData.state);
-      courseData.append('address', formData.address);
-      courseData.append('startDate', formData.startDate);
-      courseData.append('endDate', formData.endDate);
-      courseData.append('maxStudents', formData.maxStudents);
-      courseData.append('deliveryType', formData.deliveryType);
-      courseData.append('isPublished', isVerified ? formData.isPublished : false);
-      courseData.append('tags', JSON.stringify(tags));
-      courseData.append('faculty', JSON.stringify(formData.faculty));
-      // Add schedule data to the form submission
-      courseData.append('schedule', JSON.stringify(formData.schedule));
-      
-      if (formData.syllabusFile) {
-        courseData.append('syllabusFile', formData.syllabusFile);
-      }
-      
-      let response;
-      
-      if (mode === 'add') {
-        response = await api.post('/api/institution/courses', courseData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        });
-      } else {
-        response = await api.put(`/api/institution/courses/${course._id}`, courseData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        });
-      }
-      
-      if (response.data.success) {
-        onSuccess(response.data.data);
-      } else {
-        throw new Error(response.data.message || 'Course creation failed');
-      }
-    } catch (error) {
-      console.error('Course form submission error:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to save course';
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
+  e.preventDefault();
+  setLoading(true);
+  setError('');
+  
+  try {
+    // Basic validation
+    if (!formData.title || !formData.description || !formData.price || !formData.startDate || !formData.endDate) {
+      throw new Error('Please fill all required fields');
     }
-  };
+    
+    if (new Date(formData.startDate) >= new Date(formData.endDate)) {
+      throw new Error('End date must be after start date');
+    }
+    
+    // Process subjects (EXISTING)
+    const subjects = formData.subjects
+      .split(',')
+      .map(subject => subject.trim())
+      .filter(subject => subject !== '');
+    
+    // Process tags (EXISTING)
+    const tags = formData.tags
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(tag => tag !== '');
+    
+    // Process highlights (NEW)
+    const highlights = formData.highlights
+      .split('\n')
+      .map(highlight => highlight.trim())
+      .filter(highlight => highlight !== '');
+    
+    // Process whatYouWillLearn (NEW)
+    const whatYouWillLearn = formData.whatYouWillLearn
+      .split('\n')
+      .map(item => item.trim())
+      .filter(item => item !== '');
+    
+    // Process prerequisites (NEW)
+    const prerequisites = formData.prerequisites
+      .split('\n')
+      .map(prereq => prereq.trim())
+      .filter(prereq => prereq !== '');
+    
+    // Validate required new fields
+    if (highlights.length === 0) {
+      throw new Error('Please add at least one course highlight');
+    }
+    
+    if (whatYouWillLearn.length === 0) {
+      throw new Error('Please add at least one learning outcome');
+    }
+    
+    // Create FormData object
+    const courseData = new FormData();
+    
+    // Append basic fields (EXISTING)
+    courseData.append('title', formData.title);
+    courseData.append('description', formData.description);
+    courseData.append('price', formData.price);
+    courseData.append('originalPrice', formData.originalPrice || formData.price);
+    courseData.append('discount', formData.discount);
+    courseData.append('duration', formData.duration);
+    courseData.append('courseCategory', formData.courseCategory);
+    courseData.append('courseType', JSON.stringify(formData.courseType));
+    courseData.append('subjects', JSON.stringify(subjects));
+    courseData.append('courseLanguages', JSON.stringify(formData.language));
+    
+    // Append location fields (EXISTING)
+    courseData.append('city', formData.city);
+    courseData.append('state', formData.state);
+    courseData.append('address', formData.address);
+    
+    // Append date fields (EXISTING)
+    courseData.append('startDate', formData.startDate);
+    courseData.append('endDate', formData.endDate);
+    
+    // Append other existing fields
+    courseData.append('maxStudents', formData.maxStudents);
+    courseData.append('deliveryType', formData.deliveryType);
+    courseData.append('isPublished', isVerified ? formData.isPublished : false);
+    courseData.append('tags', JSON.stringify(tags));
+    courseData.append('faculty', JSON.stringify(formData.faculty));
+    courseData.append('schedule', JSON.stringify(formData.schedule));
+    
+    // Append NEW fields
+    courseData.append('highlights', JSON.stringify(highlights));
+    courseData.append('whatYouWillLearn', JSON.stringify(whatYouWillLearn));
+    courseData.append('prerequisites', JSON.stringify(prerequisites));
+    courseData.append('targetAudience', formData.targetAudience);
+    courseData.append('syllabusDetails', JSON.stringify(formData.syllabusDetails));
+    
+    // Append coordinates if available (NEW)
+    if (formData.coordinates.lat && formData.coordinates.lng) {
+      courseData.append('coordinates', JSON.stringify(formData.coordinates));
+    }
+    
+    // Append syllabus file if exists (EXISTING)
+    if (formData.syllabusFile) {
+      courseData.append('syllabusFile', formData.syllabusFile);
+    }
+    
+    // Append cover image if exists (NEW)
+    if (formData.coverImage) {
+      courseData.append('coverImage', formData.coverImage);
+    }
+    
+    // Append gallery images if exist (NEW)
+    if (formData.galleryImages.length > 0) {
+      formData.galleryImages.forEach((image, index) => {
+        courseData.append('galleryImages', image);
+      });
+    }
+    
+    // Make API call
+    let response;
+    
+    if (mode === 'add') {
+      response = await api.post('/api/institution/courses', courseData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+    } else {
+      response = await api.put(`/api/institution/courses/${course._id}`, courseData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+    }
+    
+    if (response.data.success) {
+      onSuccess(response.data.data);
+    } else {
+      throw new Error(response.data.message || 'Course creation failed');
+    }
+  } catch (error) {
+    console.error('Course form submission error:', error);
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to save course';
+    setError(errorMessage);
+  } finally {
+    setLoading(false);
+  }
+};
   
   return (
     <div>
@@ -1641,6 +1747,129 @@ const CourseForm = ({ mode, course, onCancel, onSuccess, setError, isVerified })
             courseType={formData.courseType}
           />
         </div>
+
+        {/* Course Highlights & Learning Outcomes */}
+<div className="bg-gray-50 p-6 rounded-lg">
+  <h3 className="text-lg font-medium mb-4 text-gray-900">Course Highlights & Learning Outcomes</h3>
+  
+  <div className="space-y-4">
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Course Highlights*
+        <span className="text-xs text-gray-500 ml-2">(Enter each highlight on a new line)</span>
+      </label>
+      <textarea
+        name="highlights"
+        value={formData.highlights}
+        onChange={handleChange}
+        rows="5"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="✓ Experienced faculty with proven track record&#10;✓ Comprehensive study material&#10;✓ Regular mock tests and assessments&#10;✓ Personal mentorship&#10;✓ Small batch size for better interaction"
+        required
+      />
+    </div>
+    
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        What You Will Learn*
+        <span className="text-xs text-gray-500 ml-2">(Enter each learning outcome on a new line)</span>
+      </label>
+      <textarea
+        name="whatYouWillLearn"
+        value={formData.whatYouWillLearn}
+        onChange={handleChange}
+        rows="5"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="• Complete understanding of UPSC exam pattern&#10;• Effective answer writing techniques&#10;• Time management strategies&#10;• Current affairs analysis&#10;• Interview preparation skills"
+        required
+      />
+    </div>
+  </div>
+</div>
+
+{/* Prerequisites & Target Audience */}
+<div className="bg-gray-50 p-6 rounded-lg">
+  <h3 className="text-lg font-medium mb-4 text-gray-900">Prerequisites & Target Audience</h3>
+  
+  <div className="space-y-4">
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Prerequisites
+        <span className="text-xs text-gray-500 ml-2">(Enter each prerequisite on a new line)</span>
+      </label>
+      <textarea
+        name="prerequisites"
+        value={formData.prerequisites}
+        onChange={handleChange}
+        rows="4"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="• Basic understanding of Indian polity&#10;• Good command over English/Hindi&#10;• Completed graduation&#10;• Basic computer skills"
+      />
+    </div>
+    
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Target Audience
+      </label>
+      <textarea
+        name="targetAudience"
+        value={formData.targetAudience}
+        onChange={handleChange}
+        rows="3"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="UPSC aspirants preparing for Civil Services Examination, especially those targeting Prelims and Mains..."
+      />
+    </div>
+  </div>
+</div>
+
+{/* Course Media */}
+<div className="bg-gray-50 p-6 rounded-lg">
+  <h3 className="text-lg font-medium mb-4 text-gray-900">Course Media</h3>
+  
+  <div className="space-y-4">
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Cover Image
+      </label>
+      {formData.existingCoverImage && (
+        <div className="flex items-center mb-2">
+          <span className="text-sm text-blue-600 mr-2">🖼️ Current cover image</span>
+        </div>
+      )}
+      <input
+        type="file"
+        name="coverImage"
+        onChange={handleChange}
+        accept="image/*"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <p className="text-gray-500 text-xs mt-1">Recommended size: 1200x630px, Max: 5MB</p>
+    </div>
+    
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Gallery Images
+      </label>
+      {formData.existingGalleryImages.length > 0 && (
+        <div className="flex items-center mb-2">
+          <span className="text-sm text-blue-600 mr-2">
+            🖼️ {formData.existingGalleryImages.length} existing gallery images
+          </span>
+        </div>
+      )}
+      <input
+        type="file"
+        name="galleryImages"
+        onChange={handleChange}
+        accept="image/*"
+        multiple
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <p className="text-gray-500 text-xs mt-1">Upload multiple images, Max 5MB each</p>
+    </div>
+  </div>
+</div>
 
         {/* Faculty Information */}
         <div className="bg-gray-50 p-6 rounded-lg">
