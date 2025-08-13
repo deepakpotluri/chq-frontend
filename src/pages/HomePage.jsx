@@ -22,6 +22,27 @@ const HomePage = () => {
     city: '',
     priceRange: ''
   });
+
+
+  // Cache keys
+  const CACHE_KEYS = {
+    FEATURED_COURSES: 'homepage_featured_courses',
+    PROMOTED_COURSES: 'homepage_promoted_courses',
+    CACHE_TIMESTAMP: 'homepage_cache_timestamp'
+  };
+
+  // Cache duration: 10 minutes (in milliseconds)
+  const CACHE_DURATION = 10 * 60 * 1000;
+
+  // Check if cache is still valid
+  const isCacheValid = () => {
+    const timestamp = sessionStorage.getItem(CACHE_KEYS.CACHE_TIMESTAMP);
+    if (!timestamp) return false;
+    
+    const cacheTime = parseInt(timestamp);
+    const now = Date.now();
+    return (now - cacheTime) < CACHE_DURATION;
+  };
   
   const navigate = (path) => {
     window.location.href = path;
@@ -69,71 +90,93 @@ const HomePage = () => {
   ];
 
   useEffect(() => {
-    fetchCourses();
+  loadCoursesFromCacheOrAPI();
   }, []);
 
-  const fetchCourses = async () => {
+  // Load courses from cache if valid, otherwise fetch from API
+  const loadCoursesFromCacheOrAPI = async () => {
     try {
+      setLoading(true);
       setError('');
-      console.log('Starting to fetch courses...');
+
+      // Try to load from cache first
+      if (isCacheValid()) {
+        console.log('Loading courses from cache...');
+        
+        const cachedFeatured = sessionStorage.getItem(CACHE_KEYS.FEATURED_COURSES);
+        const cachedPromoted = sessionStorage.getItem(CACHE_KEYS.PROMOTED_COURSES);
+        
+        if (cachedFeatured && cachedPromoted) {
+          setFeaturedCourses(JSON.parse(cachedFeatured));
+          setPromotedCourses(JSON.parse(cachedPromoted));
+          setLoading(false);
+          return;
+        }
+      }
+
+      // If cache is invalid or empty, fetch from API
+      console.log('Cache invalid or empty, fetching from API...');
+      await fetchCoursesFromAPI();
       
+    } catch (err) {
+      console.error('Error loading courses:', err);
+      setError('Unable to load courses. Please check your connection and refresh the page.');
+      setLoading(false);
+    }
+  };
+
+  // Fetch courses from API and cache the results
+  const fetchCoursesFromAPI = async () => {
+    try {
+      let fetchedFeatured = [];
+      let fetchedPromoted = [];
+
       // Fetch featured courses
       try {
-        console.log('Fetching featured courses...');
         const featuredResponse = await api.get('/api/courses/published?isFeatured=true&limit=6');
-        console.log('Featured response:', featuredResponse);
         
         if (featuredResponse.data.success && featuredResponse.data.data) {
-          setFeaturedCourses(featuredResponse.data.data);
-          console.log(`Set ${featuredResponse.data.data.length} featured courses`);
+          fetchedFeatured = featuredResponse.data.data;
         }
       } catch (featuredError) {
         console.error('Error fetching featured courses:', featuredError);
       }
 
       // Fetch promoted courses
-      // Fetch promoted courses
-try {
-  console.log('Fetching homepage promoted courses...');
-  // First try to get admin-selected homepage courses
-  const homepageResponse = await api.get('/api/courses/published?homepage=true');
-  
-  if (homepageResponse.data.success && homepageResponse.data.data && homepageResponse.data.data.length > 0) {
-    setPromotedCourses(homepageResponse.data.data);
-    console.log(`Set ${homepageResponse.data.data.length} admin-selected homepage courses`);
-  } else {
-    // Fallback to regular promoted courses
-    console.log('No admin-selected courses, fetching regular promoted courses...');
-    const promotedResponse = await api.get('/api/courses/published?promoted=true&limit=4');
-    
-    if (promotedResponse.data.success && promotedResponse.data.data) {
-      setPromotedCourses(promotedResponse.data.data);
-      console.log(`Set ${promotedResponse.data.data.length} promoted courses`);
-    }
-  }
-} catch (promotedError) {
-  console.error('Error fetching promoted courses:', promotedError);
-  // Fallback to any published courses
-  try {
-    const fallbackResponse = await api.get('/api/courses/published?limit=4');
-    if (fallbackResponse.data.success && fallbackResponse.data.data) {
-      setPromotedCourses(fallbackResponse.data.data);
-    }
-  } catch (fallbackError) {
-    console.error('Fallback also failed:', fallbackError);
-  }
-}
+      try {
+        // First try to get admin-selected homepage courses
+        const homepageResponse = await api.get('/api/courses/published?homepage=true');
+        
+        if (homepageResponse.data.success && homepageResponse.data.data && homepageResponse.data.data.length > 0) {
+          fetchedPromoted = homepageResponse.data.data;
+        } else {
+          // Fallback to regular promoted courses
+          const promotedResponse = await api.get('/api/courses/published?promoted=true&limit=4');
+          
+          if (promotedResponse.data.success && promotedResponse.data.data) {
+            fetchedPromoted = promotedResponse.data.data;
+          }
+        }
+      } catch (promotedError) {
+        console.error('Error fetching promoted courses:', promotedError);
+        // Final fallback to any published courses
+        try {
+          const fallbackResponse = await api.get('/api/courses/published?limit=4');
+          if (fallbackResponse.data.success && fallbackResponse.data.data) {
+            fetchedPromoted = fallbackResponse.data.data;
+          }
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError);
+        }
+      }
 
       // If no featured courses, fetch recent published courses
-      if (featuredCourses.length === 0) {
+      if (fetchedFeatured.length === 0) {
         try {
-          console.log('No featured courses, fetching recent courses...');
           const recentResponse = await api.get('/api/courses/published?limit=6&sort=newest');
-          console.log('Recent response:', recentResponse);
           
           if (recentResponse.data.success && recentResponse.data.data) {
-            setFeaturedCourses(recentResponse.data.data);
-            console.log(`Set ${recentResponse.data.data.length} recent courses as featured`);
+            fetchedFeatured = recentResponse.data.data;
           }
         } catch (recentError) {
           console.error('Error fetching recent courses:', recentError);
@@ -141,28 +184,28 @@ try {
       }
 
       // If no promoted courses, fetch all published courses
-      if (promotedCourses.length === 0) {
+      if (fetchedPromoted.length === 0) {
         try {
-          console.log('No promoted courses, fetching all courses...');
           const allCoursesResponse = await api.get('/api/courses/published?limit=4');
-          console.log('All courses response:', allCoursesResponse);
           
           if (allCoursesResponse.data.success && allCoursesResponse.data.data) {
-            setPromotedCourses(allCoursesResponse.data.data);
-            console.log(`Set ${allCoursesResponse.data.data.length} courses as promoted`);
+            fetchedPromoted = allCoursesResponse.data.data;
           }
         } catch (allError) {
           console.error('Error fetching all courses:', allError);
         }
       }
 
-      // Additional debug: fetch course status
-      try {
-        const debugResponse = await api.get('/api/courses/debug/status');
-        console.log('Debug status:', debugResponse.data);
-      } catch (debugError) {
-        console.error('Debug endpoint error:', debugError);
-      }
+      // Update state
+      setFeaturedCourses(fetchedFeatured);
+      setPromotedCourses(fetchedPromoted);
+
+      // Cache the results
+      sessionStorage.setItem(CACHE_KEYS.FEATURED_COURSES, JSON.stringify(fetchedFeatured));
+      sessionStorage.setItem(CACHE_KEYS.PROMOTED_COURSES, JSON.stringify(fetchedPromoted));
+      sessionStorage.setItem(CACHE_KEYS.CACHE_TIMESTAMP, Date.now().toString());
+
+      console.log('Courses fetched and cached successfully');
 
     } catch (error) {
       console.error('General error fetching courses:', error);
@@ -171,7 +214,7 @@ try {
       setLoading(false);
     }
   };
-
+  
   const handleSearch = (e) => {
     e.preventDefault();
     const searchParams = new URLSearchParams();
