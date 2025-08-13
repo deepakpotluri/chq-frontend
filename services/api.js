@@ -7,13 +7,13 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 // Ensure the URL doesn't have a trailing slash
 const baseURL = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
 
-// Create axios instance with base configuration
+// Create axios instance with base configuration - OPTIMIZED for Vercel
 const api = axios.create({
   baseURL: baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 second timeout for Vercel cold starts
+  timeout: 60000, // Increased to 60 seconds for Vercel cold starts
 });
 
 // Request interceptor to add token to all requests
@@ -35,12 +35,30 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle common response scenarios
+// Enhanced response interceptor with retry logic
 api.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error) => {
+  async (error) => {
+    const config = error.config;
+    
+    // Retry logic for timeouts and 5xx errors
+    if (config && !config._retry && (
+      error.code === 'ECONNABORTED' || 
+      error.code === 'ETIMEDOUT' ||
+      (error.response && error.response.status >= 500)
+    )) {
+      config._retry = true;
+      config.timeout = 90000; // Even longer timeout for retry
+      
+      console.log('Retrying API request:', config.url);
+      
+      // Wait 2 seconds before retry
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return api.request(config);
+    }
+    
     // Log error without sensitive data
     console.error(`API Error: ${error.response?.status || 'Network Error'} - ${error.config?.url || 'Unknown URL'}`);
     

@@ -24,7 +24,8 @@ const CourseScheduleCalendar = ({
     description: '',
     isRecurring: false,
     recurringDays: [],
-    color: '#3B82F6'
+    color: '#3B82F6',
+    meetingLink: '',
   });
 
   // Add state for mobile view
@@ -123,7 +124,8 @@ const CourseScheduleCalendar = ({
       faculty: '',
       description: '',
       isRecurring: false,
-      recurringDays: []
+      recurringDays: [],
+      meetingLink: '' 
     });
     setShowEventModal(true);
   };
@@ -149,7 +151,8 @@ const CourseScheduleCalendar = ({
       faculty: event.faculty || '',
       description: event.description || '',
       isRecurring: false,
-      recurringDays: []
+      recurringDays: [],
+      meetingLink: event.meetingLink || '',
     });
     setShowEventModal(true);
   };
@@ -448,6 +451,22 @@ const CourseScheduleCalendar = ({
                   placeholder="Additional details..."
                 />
               </div>
+              {/* Meeting Link - ADD THIS SECTION */}
+<div>
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    Meeting Link (Optional)
+  </label>
+  <input
+    type="url"
+    value={eventForm.meetingLink}
+    onChange={(e) => setEventForm({ ...eventForm, meetingLink: e.target.value })}
+    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+    placeholder="https://meet.google.com/xxx-xxxx-xxx"
+  />
+  <p className="mt-1 text-xs text-gray-500">
+    Add Google Meet, Zoom, or any other meeting link
+  </p>
+</div>
 
               {/* Recurring Option */}
               {!selectedEvent && (

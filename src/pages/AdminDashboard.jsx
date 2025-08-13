@@ -55,109 +55,128 @@ const [reviewPagination, setReviewPagination] = useState({ page: 1, totalPages: 
   if (activeTab === 'activity') fetchLoginActivity();
 }, [activeTab, userPagination.page, institutionPagination.page, coursePagination.page, reviewPagination.page, userFilter, institutionFilter, courseFilter, reviewFilter]);
   
-  const fetchAdminData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('Not authenticated');
-      
-      const [statsResponse, overviewResponse] = await Promise.all([
-        api.get('/api/admin/stats'),
-        api.get('/api/admin/system/overview')
-      ]);
-      
-      setStats(statsResponse.data);
-      setSystemOverview(overviewResponse.data.overview || {});
+ // Replace your existing fetchAdminData function in AdminDashboard.jsx
+const fetchAdminData = async () => {
+  try {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Not authenticated');
+    
+    // OPTIMIZED: Execute parallel API calls for independent data
+    const [statsResult, overviewResult] = await Promise.allSettled([
+      api.get('/api/admin/stats'),
+      api.get('/api/admin/system/overview')
+    ]);
+    
+    // Handle stats
+    if (statsResult.status === 'fulfilled') {
+      setStats(statsResult.value.data);
       
       // Create notifications based on pending items
       const newNotifications = [];
-      if (statsResponse.data.pendingInstitutions > 0) {
+      if (statsResult.value.data.pendingInstitutions > 0) {
         newNotifications.push({
           id: 'pending-inst',
           type: 'warning',
-          message: `${statsResponse.data.pendingInstitutions} institutions pending verification`,
+          message: `${statsResult.value.data.pendingInstitutions} institutions pending verification`,
           action: () => {
             setInstitutionFilter({ isVerified: 'false' });
             setActiveTab('institutions');
           }
         });
       }
-      if (statsResponse.data.pendingReviews > 0) {
+      
+      if (statsResult.value.data.pendingReviews > 0) {
         newNotifications.push({
           id: 'pending-reviews',
-          type: 'info',
-          message: `${statsResponse.data.pendingReviews} reviews awaiting moderation`,
+          type: 'info', 
+          message: `${statsResult.value.data.pendingReviews} reviews pending approval`,
           action: () => setActiveTab('reviews')
         });
       }
+      
       setNotifications(newNotifications);
-      
-    } catch (err) {
-      setError('Failed to load admin data');
-      console.error(err);
-    } finally {
-      setLoading(false);
+    } else {
+      console.error('Failed to fetch admin stats:', statsResult.reason);
     }
-  };
-  
-  const fetchUsers = async () => {
-    try {
-      const params = new URLSearchParams({
-        page: userPagination.page,
-        limit: 20,
-        ...userFilter
-      });
-      
-      const response = await api.get(`/api/admin/users?${params}`);
-      setUsers(response.data.data);
-      setUserPagination({
-        ...userPagination,
-        totalPages: response.data.pagination.pages
-      });
-    } catch (err) {
-      console.error('Error fetching users:', err);
-      setError('Failed to fetch users');
+    
+    // Handle overview
+    if (overviewResult.status === 'fulfilled') {
+      setSystemOverview(overviewResult.value.data.overview || {});
+    } else {
+      console.error('Failed to fetch system overview:', overviewResult.reason);
+      setSystemOverview({});
     }
-  };
-  
-  const fetchInstitutions = async () => {
-    try {
-      const params = new URLSearchParams({
-        page: institutionPagination.page,
-        limit: 10,
-        ...institutionFilter
-      });
-      
-      const response = await api.get(`/api/admin/institutions?${params}`);
-      setInstitutions(response.data.data);
-      setInstitutionPagination({
-        ...institutionPagination,
-        totalPages: response.data.pagination.pages
-      });
-    } catch (err) {
-      console.error('Error fetching institutions:', err);
-      setError('Failed to fetch institutions');
-    }
-  };
-  
-  const fetchCourses = async () => {
-    try {
-      const params = new URLSearchParams({
-        page: coursePagination.page,
-        limit: 20,
-        ...courseFilter
-      });
-      
-      const response = await api.get(`/api/admin/courses?${params}`);
-      setCourses(response.data.data);
-      setCoursePagination({
-        ...coursePagination,
-        totalPages: response.data.pagination.pages
-      });
-    } catch (err) {
-      console.error('Error fetching courses:', err);
-      setError('Failed to fetch courses');
-    }
-  };
+    
+  } catch (error) {
+    console.error('Error fetching admin data:', error);
+    setError('Failed to load admin dashboard');
+  } finally {
+    setLoading(false);
+  }
+};
+
+// Add these optimized individual fetch functions to your AdminDashboard.jsx
+
+const fetchUsers = async () => {
+  try {
+    const params = new URLSearchParams({
+      page: userPagination.page,
+      limit: 20,
+      ...userFilter
+    });
+    
+    const response = await api.get(`/api/admin/users?${params}`);
+    setUsers(response.data.data || []);
+    setUserPagination(prev => ({
+      ...prev,
+      totalPages: response.data.pagination?.pages || 1
+    }));
+  } catch (err) {
+    console.error('Error fetching users:', err);
+    setUsers([]);
+  }
+};
+
+const fetchInstitutions = async () => {
+  try {
+    const params = new URLSearchParams({
+      page: institutionPagination.page,
+      limit: 20,
+      ...institutionFilter
+    });
+    
+    const response = await api.get(`/api/admin/institutions?${params}`);
+    setInstitutions(response.data.data || []);
+    setInstitutionPagination(prev => ({
+      ...prev,
+      totalPages: response.data.pagination?.pages || 1
+    }));
+  } catch (err) {
+    console.error('Error fetching institutions:', err);
+    setInstitutions([]);
+  }
+};
+
+const fetchCourses = async () => {
+  try {
+    const params = new URLSearchParams({
+      page: coursePagination.page,
+      limit: 20,
+      ...courseFilter
+    });
+    
+    const response = await api.get(`/api/admin/courses?${params}`);
+    setCourses(response.data.data || []);
+    setCoursePagination(prev => ({
+      ...prev,
+      totalPages: response.data.pagination?.pages || 1
+    }));
+  } catch (err) {
+    console.error('Error fetching courses:', err);
+    setCourses([]);
+  }
+};
   
   const fetchPendingReviews = async () => {
     try {

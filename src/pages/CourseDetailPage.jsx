@@ -11,6 +11,7 @@ const CourseDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
+  const [isEnrolled, setIsEnrolled] = useState(false);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [reviewFormVisible, setReviewFormVisible] = useState(false);
   const [isShortlisted, setIsShortlisted] = useState(false);
@@ -36,6 +37,31 @@ const formatTime12Hour = (time24) => {
   return `${hour12}:${minutes} ${ampm}`;
 };
 
+
+// Add this function after your other helper functions
+const checkEnrollmentStatus = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const userRole = localStorage.getItem('role');
+    
+    // Only check for aspirants
+    if (!token || userRole !== 'aspirant' || !course) return;
+    
+    // Check if user is enrolled by making API call
+    const response = await api.get('/api/aspirant/enrolled');
+    if (response.data.success) {
+      const enrolledCourses = response.data.courses || [];
+      const enrolled = enrolledCourses.some(item => 
+        item.course._id === courseId || item._id === `enrollment_${courseId}`
+      );
+      setIsEnrolled(enrolled);
+    }
+  } catch (error) {
+    console.error('Error checking enrollment status:', error);
+    setIsEnrolled(false);
+  }
+};
+
 // Handler for calendar event clicks
 const handleCalendarEventClick = (event) => {
   setSelectedSession(event);
@@ -47,6 +73,12 @@ const handleCalendarEventClick = (event) => {
     trackCourseView();
     checkShortlistStatus();
   }, [courseId]);
+
+  useEffect(() => {
+  if (course) {
+    checkEnrollmentStatus();
+  }
+  }, [course]); 
 
   const fetchCourseDetails = async () => {
     try {
@@ -664,6 +696,40 @@ const institutionData = getInstitutionData();
                   </div>
                 )}
 
+
+
+                {/* Highlights Tab - MISSING CONTENT */}
+                   {activeTab === 'highlights' && (
+  <div className="space-y-6">
+    <h2 className="text-2xl font-bold text-gray-900 mb-6">Course Highlights</h2>
+    
+    {course.highlights && course.highlights.length > 0 ? (
+      <div className="space-y-3">
+        {course.highlights.map((highlight, idx) => (
+          <div key={idx} className="flex items-start p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex-shrink-0 w-5 h-5 bg-gray-400 rounded-full flex items-center justify-center mr-3 mt-0.5">
+              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-gray-700 leading-relaxed">{highlight}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div className="bg-gray-50 p-8 rounded-lg text-center border border-gray-200">
+        <svg className="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+        <p className="text-gray-600">No highlights available</p>
+        <p className="text-sm text-gray-500 mt-2">Course highlights will be displayed here once added by the institution.</p>
+      </div>
+    )}
+  </div>
+)}
+
                 {/* Curriculum Tab */}
                 {activeTab === 'curriculum' && (
                   <div className="space-y-6">
@@ -1127,101 +1193,138 @@ const institutionData = getInstitutionData();
     )}
     
     {/* Session Info Modal */}
-    {showSessionInfo && selectedSession && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl max-w-lg w-full">
-          <div className="p-6 border-b">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-gray-900">Session Details</h3>
-              <button
-                onClick={() => {
-                  setShowSessionInfo(false);
-                  setSelectedSession(null);
-                }}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
-              >
-                <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+{/* Session Info Modal - Responsive Design */}
+{showSessionInfo && selectedSession && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+      {/* Modal Header */}
+      <div className="p-4 sm:p-6 border-b bg-gray-50">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Session Details</h3>
+          <button
+            onClick={() => setShowSessionInfo(false)}
+            className="p-1.5 sm:p-2 hover:bg-gray-200 rounded-lg transition"
+            aria-label="Close modal"
+          >
+            <span className="text-xl sm:text-2xl">✕</span>
+          </button>
+        </div>
+      </div>
+      
+      {/* Modal Body - Scrollable */}
+      <div className="p-4 sm:p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-180px)]">
+        {/* Type Badge */}
+        <div className="flex flex-wrap gap-2">
+          <span className={`px-2.5 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
+            selectedSession.type === 'lecture' ? 'bg-blue-100 text-blue-700' :
+            selectedSession.type === 'test' ? 'bg-yellow-100 text-yellow-700' :
+            selectedSession.type === 'doubt-clearing' ? 'bg-green-100 text-green-700' :
+            selectedSession.type === 'discussion' ? 'bg-purple-100 text-purple-700' :
+            selectedSession.type === 'exam' ? 'bg-red-100 text-red-700' :
+            'bg-gray-100 text-gray-700'
+          }`}>
+            {selectedSession.type.charAt(0).toUpperCase() + selectedSession.type.slice(1).replace('-', ' ')}
+          </span>
+          {selectedSession.isRecurring && (
+            <span className="px-2.5 sm:px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-medium">
+              Recurring
+            </span>
+          )}
+        </div>
+        
+        {/* Title */}
+        <div>
+          <h4 className="text-base sm:text-lg font-semibold text-gray-900 break-words">
+            {selectedSession.title}
+          </h4>
+        </div>
+        
+        {/* Date & Time - Responsive Grid */}
+        <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+          <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4">
+            <div>
+              <span className="text-xs sm:text-sm text-gray-600 block mb-1">Date</span>
+              <span className="font-medium text-sm sm:text-base text-gray-900">
+                {new Date(selectedSession.date).toLocaleDateString('en-US', { 
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </span>
             </div>
-          </div>
-          
-          <div className="p-6">
-            <div className="space-y-4">
-              {/* Session Type Badge */}
-              <div className="flex items-center gap-3">
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  selectedSession.type === 'lecture' ? 'bg-blue-100 text-blue-700' :
-                  selectedSession.type === 'test' ? 'bg-yellow-100 text-yellow-700' :
-                  selectedSession.type === 'doubt-clearing' ? 'bg-green-100 text-green-700' :
-                  selectedSession.type === 'discussion' ? 'bg-purple-100 text-purple-700' :
-                  selectedSession.type === 'exam' ? 'bg-red-100 text-red-700' :
-                  'bg-gray-100 text-gray-700'
-                }`}>
-                  {selectedSession.type.charAt(0).toUpperCase() + selectedSession.type.slice(1).replace('-', ' ')}
-                </span>
-                {selectedSession.isRecurring && (
-                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                    Recurring
-                  </span>
-                )}
-              </div>
-              
-              {/* Title */}
-              <div>
-                <h4 className="text-lg font-semibold text-gray-900">{selectedSession.title}</h4>
-              </div>
-              
-              {/* Date & Time */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Date</span>
-                  <span className="font-medium text-gray-900">
-                    {new Date(selectedSession.date).toLocaleDateString('en-US', { 
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Time</span>
-                  <span className="font-medium text-gray-900">
-                    {formatTime12Hour(selectedSession.startTime)} - {formatTime12Hour(selectedSession.endTime)}
-                  </span>
-                </div>
-              </div>
-              
-              {/* Subject */}
-              {selectedSession.subject && (
-                <div>
-                  <h5 className="text-sm font-medium text-gray-600 mb-1">Subject</h5>
-                  <p className="text-gray-900">{selectedSession.subject}</p>
-                </div>
-              )}
-              
-              {/* Faculty */}
-              {selectedSession.faculty && (
-                <div>
-                  <h5 className="text-sm font-medium text-gray-600 mb-1">Faculty</h5>
-                  <p className="text-gray-900">{selectedSession.faculty}</p>
-                </div>
-              )}
-              
-              {/* Description */}
-              {selectedSession.description && (
-                <div>
-                  <h5 className="text-sm font-medium text-gray-600 mb-1">Description</h5>
-                  <p className="text-gray-900">{selectedSession.description}</p>
-                </div>
-              )}
+            <div>
+              <span className="text-xs sm:text-sm text-gray-600 block mb-1">Time</span>
+              <span className="font-medium text-sm sm:text-base text-gray-900">
+                {formatTime12Hour(selectedSession.startTime)} - {formatTime12Hour(selectedSession.endTime)}
+              </span>
             </div>
           </div>
         </div>
+        
+        {/* Subject */}
+        {selectedSession.subject && (
+          <div>
+            <h5 className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Subject</h5>
+            <p className="text-sm sm:text-base text-gray-900">{selectedSession.subject}</p>
+          </div>
+        )}
+        
+        {/* Faculty */}
+        {selectedSession.faculty && (
+          <div>
+            <h5 className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Faculty</h5>
+            <p className="text-sm sm:text-base text-gray-900">{selectedSession.faculty}</p>
+          </div>
+        )}
+        
+        {/* Meeting Link */}
+        {selectedSession.meetingLink && (
+          <div>
+            <h5 className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Meeting Link</h5>
+            
+            {/* Show link only to enrolled aspirants */}
+            {localStorage.getItem('role') === 'aspirant' && isEnrolled ? (
+              <a 
+                href={selectedSession.meetingLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 transition text-sm sm:text-base"
+              >
+                <span>🎥</span>
+                <span>Join Online Session</span>
+              </a>
+            ) : localStorage.getItem('role') === 'aspirant' ? (
+              <p className="text-xs sm:text-sm text-gray-500 italic">
+                Meeting link is available only for enrolled students
+              </p>
+            ) : null}
+          </div>
+        )}
+        
+        {/* Description */}
+        {selectedSession.description && (
+          <div>
+            <h5 className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Description</h5>
+            <p className="text-sm sm:text-base text-gray-700 whitespace-pre-wrap break-words">
+              {selectedSession.description}
+            </p>
+          </div>
+        )}
       </div>
-    )}
+      
+      {/* Modal Footer */}
+      <div className="p-4 sm:p-6 border-t bg-gray-50">
+        <button
+          onClick={() => setShowSessionInfo(false)}
+          className="w-full sm:w-auto sm:min-w-[120px] bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition text-sm sm:text-base font-medium"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
   </div>
 )}
 

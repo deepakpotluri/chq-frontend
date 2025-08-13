@@ -24,36 +24,96 @@ const AspirantDashboard = () => {
     fetchDashboardData();
   }, []);
 
-  const fetchDashboardData = async () => {
-    try {
-      // Fetch user profile
-      const profileResponse = await api.get('/api/aspirant/profile');
-      setUserData(profileResponse.data);
 
-      // Fetch shortlisted courses
-      const shortlistResponse = await api.get('/api/aspirant/shortlist');
-      setShortlistedCourses(shortlistResponse.data.courses || []);
-
-      // Fetch enrolled courses
-      const enrolledResponse = await api.get('/api/aspirant/enrolled');
-      setEnrolledCourses(enrolledResponse.data.courses || []);
-
-      // Fetch past enrollments
-      const pastResponse = await api.get('/api/aspirant/past-enrollments');
-      setPastEnrollments(pastResponse.data.courses || []);
-
-      // Fetch my reviews
-      const reviewsResponse = await api.get('/api/aspirant/reviews');
-      setMyReviews(reviewsResponse.data.reviews || []);
-
-    } catch (err) {
-      console.error('Error fetching dashboard data:', err);
-      setError('Failed to load dashboard data');
-
-    } finally {
-      setLoading(false);
+const fetchDashboardData = async () => {
+  try {
+    setLoading(true);
+    setError('');
+    
+    // OPTIMIZED: Make all API calls in parallel instead of sequential
+    const apiCalls = [
+      api.get('/api/aspirant/profile'),
+      api.get('/api/aspirant/shortlist'),
+      api.get('/api/aspirant/enrolled'),
+      api.get('/api/aspirant/past-enrollments'),
+      api.get('/api/aspirant/reviews')
+    ];
+    
+    // Execute all API calls concurrently with timeout handling
+    const results = await Promise.allSettled(apiCalls);
+    
+    // Process results safely
+    const [
+      profileResult,
+      shortlistResult,
+      enrolledResult,
+      pastResult,
+      reviewsResult
+    ] = results;
+    
+    // Handle profile data
+    if (profileResult.status === 'fulfilled') {
+      setUserData(profileResult.value.data);
+    } else {
+      console.error('Failed to fetch profile:', profileResult.reason);
     }
-  };
+    
+    // Handle shortlisted courses with validation
+    if (shortlistResult.status === 'fulfilled') {
+      const courses = (shortlistResult.value.data.courses || [])
+        .filter(item => item && item.course && item.course._id);
+      setShortlistedCourses(courses);
+    } else {
+      console.error('Failed to fetch shortlist:', shortlistResult.reason);
+      setShortlistedCourses([]);
+    }
+    
+    // Handle enrolled courses with validation
+    if (enrolledResult.status === 'fulfilled') {
+      const courses = (enrolledResult.value.data.courses || [])
+        .filter(item => item && item.course && item.course._id);
+      setEnrolledCourses(courses);
+    } else {
+      console.error('Failed to fetch enrolled courses:', enrolledResult.reason);
+      setEnrolledCourses([]);
+    }
+    
+    // Handle past enrollments with validation
+    if (pastResult.status === 'fulfilled') {
+      const courses = (pastResult.value.data.courses || [])
+        .filter(item => item && item.course && item.course._id);
+      setPastEnrollments(courses);
+    } else {
+      console.error('Failed to fetch past enrollments:', pastResult.reason);
+      setPastEnrollments([]);
+    }
+    
+    // Handle reviews
+    if (reviewsResult.status === 'fulfilled') {
+      setMyReviews(reviewsResult.value.data.reviews || []);
+    } else {
+      console.error('Failed to fetch reviews:', reviewsResult.reason);
+      setMyReviews([]);
+    }
+    
+    // Only show error if ALL requests failed
+    const allFailed = results.every(result => result.status === 'rejected');
+    if (allFailed) {
+      setError('Failed to load dashboard data. Please refresh the page.');
+    } else if (results.some(result => result.status === 'rejected')) {
+      // Some requests failed, but not all
+      console.warn('Some dashboard data failed to load');
+      // Don't set error state for partial failures
+    }
+
+  } catch (err) {
+    console.error('Error fetching dashboard data:', err);
+    setError('Failed to load dashboard data. Please check your connection and try again.');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const removeFromShortlist = async (courseId) => {
     try {
@@ -381,7 +441,7 @@ const AspirantDashboard = () => {
                     <div key={idx} className="flex items-center p-3 bg-gray-50 rounded-lg">
                       <div className="text-lg mr-3">❤️</div>
                       <div className="flex-1">
-                        <p className="font-medium">{item.course.title}</p>
+                        <p className="font-medium">{item.course?.title || 'Course title not available'}</p>
                         <p className="text-sm text-gray-600">
                           Added to shortlist on {new Date(item.addedAt).toLocaleDateString()}
                         </p>
@@ -393,7 +453,7 @@ const AspirantDashboard = () => {
                     <div key={idx} className="flex items-center p-3 bg-gray-50 rounded-lg">
                       <div className="text-lg mr-3">📚</div>
                       <div className="flex-1">
-                        <p className="font-medium">{item.course.title}</p>
+                        <p className="font-medium">{item.course?.title || 'Course title not available'}</p>
                         <p className="text-sm text-gray-600">
                           Enrolled on {new Date(item.enrolledAt).toLocaleDateString()} • {item.progress}% complete
                         </p>
@@ -432,14 +492,14 @@ const AspirantDashboard = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {shortlistedCourses.map((item) => (
-                    <CourseCard 
-                      key={item._id}
-                      course={item.course}
-                      isShortlisted={true}
-                      shortlistItem={item}
-                    />
-                  ))}
+                 {shortlistedCourses.filter(item => item.course).map((item) => (
+  <CourseCard 
+    key={item._id}
+    course={item.course}
+    isShortlisted={true}
+    shortlistItem={item}
+  />
+))}
                 </div>
               )}
             </div>
@@ -475,7 +535,7 @@ const AspirantDashboard = () => {
                     <div className="space-y-2">
                       {enrolledCourses.map((item, idx) => (
                         <div key={idx} className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{item.course.title}</span>
+                          <span className="text-sm font-medium">{item.course?.title || 'Course title not available'}</span>
                           <div className="flex items-center gap-2">
                             <div className="w-24 bg-gray-200 rounded-full h-2">
                               <div 
