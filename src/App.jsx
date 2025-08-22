@@ -1,4 +1,4 @@
-// src/App.jsx - Minimal fix for deployment
+// src/App.jsx - Complete and Fixed Version
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from '../src/components/Navbar';
@@ -21,7 +21,7 @@ import ViewInstitutionProfile from '../src/pages/ViewInstitutionProfile';
 // Google Form Page
 import GoogleFormPage from '../src/pages/GoogleFormPage';
 
-// ScrollToTop Component with URL Sync
+// ScrollToTop Component with URL sync
 const ScrollToTop = () => {
   const { pathname } = useLocation();
 
@@ -49,8 +49,8 @@ const ProtectedRoute = ({ element, allowedRole }) => {
   if (allowedRole && role !== allowedRole) {
     return <Navigate to="/login" state={{ 
       requiredRole: allowedRole, 
-      from: window.location.pathname,
-      message: `Access denied. ${allowedRole} role required.` 
+      currentRole: role, 
+      from: window.location.pathname 
     }} replace />;
   }
   
@@ -110,13 +110,40 @@ const AboutPage = () => {
   );
 };
 
+// Profile Settings Component
+const ProfileSettings = () => {
+  const role = localStorage.getItem('role');
+  
+  return (
+    <div className="container mx-auto px-4 py-16">
+      <h1 className="text-3xl font-bold text-gray-900 mb-8">Profile Settings</h1>
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <p className="text-gray-600">Profile settings page for {role} users - Coming soon!</p>
+        <div className="mt-8">
+          <a href={`/${role}/dashboard`} className="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-900 transition">
+            Back to Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const App = () => {
+  // Check for authentication on app load
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      console.log('User is authenticated');
+    }
+  }, []);
+
   return (
     <Router>
       <div className="App">
         <ScrollToTop />
         <Navbar />
-        <div className="pt-16"> 
+        <div className="pt-16 min-h-screen">
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<HomePage />} />
@@ -124,14 +151,8 @@ const App = () => {
             <Route path="/login" element={<LoginForm />} />
             <Route path="/signup" element={<SignupForm />} />
             <Route path="/courses" element={<CoursesPage />} />
-            <Route 
-              path="/course/:id" 
-              element={<CourseDetailPage />} 
-            />
-            <Route 
-              path="/institution/:id" 
-              element={<ViewInstitutionProfile />} 
-            />
+            <Route path="/courses/:id" element={<CourseDetailPage />} />
+            <Route path="/institutions/:id" element={<ViewInstitutionProfile />} />
             
             {/* Contact Form Route */}
             <Route path="/contact-form" element={<GoogleFormPage />} />
@@ -148,6 +169,12 @@ const App = () => {
             <Route 
               path="/admin/dashboard" 
               element={<ProtectedRoute element={<AdminDashboard />} allowedRole="admin" />} 
+            />
+            
+            {/* Profile Settings Route */}
+            <Route 
+              path="/profile-settings" 
+              element={<ProtectedRoute element={<ProfileSettings />} />} 
             />
             
             {/* 404 Route */}
