@@ -1,11 +1,25 @@
-// src/pages/GoogleFormPage.jsx - Clean version without hardcoded information
+// src/pages/GoogleFormPage.jsx - Fixed version with proper URL handling
 import React, { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const GoogleFormPage = () => {
   const iframeRef = useRef(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
+    // Force URL update in browser address bar
+    if (window.location.pathname !== '/contact-form') {
+      window.history.pushState(null, '', '/contact-form');
+    }
+    
+    // Update document title
+    document.title = 'Contact Form - Civils HQ';
+    
+    // Ensure the page starts at the top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
     const handleMessage = (event) => {
       // Check if the message is from Google Forms
       if (event.origin !== 'https://docs.google.com') return;
@@ -33,6 +47,16 @@ const GoogleFormPage = () => {
     // Add event listener for messages from iframe
     window.addEventListener('message', handleMessage);
 
+    // Handle browser back/forward buttons
+    const handlePopState = (event) => {
+      if (window.location.pathname === '/contact-form') {
+        // We're still on the contact form page, no need to navigate
+        event.preventDefault();
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+
     // Show scroll to top button when user scrolls down
     const handleScroll = () => {
       if (window.scrollY > 200) {
@@ -47,9 +71,23 @@ const GoogleFormPage = () => {
     // Cleanup
     return () => {
       window.removeEventListener('message', handleMessage);
+      window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('scroll', handleScroll);
     };
-  }, []);
+  }, [location, navigate]);
+
+  // Handle iframe load to ensure proper URL state
+  const handleIframeLoad = () => {
+    // Double-check URL is correct after iframe loads
+    if (window.location.pathname !== '/contact-form') {
+      window.history.replaceState(null, '', '/contact-form');
+    }
+    
+    // Scroll to top after a brief delay to ensure iframe is fully loaded
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 500);
+  };
 
   const scrollToTop = () => {
     window.scrollTo({ 
@@ -63,6 +101,12 @@ const GoogleFormPage = () => {
       {/* Form Container */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h1 className="text-2xl font-bold text-gray-900">Contact Us</h1>
+            <p className="text-gray-600 mt-1">Get in touch with our team</p>
+          </div>
+          
           {/* Form Iframe */}
           <div className="w-full">
             <iframe 
@@ -73,13 +117,12 @@ const GoogleFormPage = () => {
               frameBorder="0" 
               marginHeight="0" 
               marginWidth="0"
-              title="Form"
+              title="Contact Form"
               className="w-full"
-              onLoad={() => {
-                // Ensure we start at the top
-                setTimeout(() => {
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }, 500);
+              onLoad={handleIframeLoad}
+              style={{
+                border: 'none',
+                overflow: 'hidden'
               }}
             >
               Loading form...
