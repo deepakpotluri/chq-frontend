@@ -1,4 +1,4 @@
-// src/pages/GoogleFormPage.jsx - Fixed version with proper URL handling
+// src/pages/GoogleFormPage.jsx - Complete version with URL fix
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 

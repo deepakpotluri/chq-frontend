@@ -1,10 +1,8 @@
-// src/App.jsx - Updated with Better URL Syncing and Cache Busting
+// src/App.jsx - Minimal fix for deployment
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from '../src/components/Navbar';
 import HomePage from '../src/pages/HomePage';
-// import NotFound from '../src/pages/NotFound';  // Create this file or remove if not needed
-// import ProfileSettings from '../src/pages/ProfileSettings';  // Create this file or remove if not needed
 
 // Auth Components
 import LoginForm from '../src/components/auth/LoginForm';
@@ -33,43 +31,8 @@ const ScrollToTop = () => {
       window.history.replaceState(null, '', pathname);
     }
     
-    // Scroll to top on route change
     window.scrollTo(0, 0);
-    
-    // Clear any cached navigation state
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(registrations => {
-        registrations.forEach(registration => {
-          if (registration.active) {
-            registration.active.postMessage({ type: 'SKIP_WAITING' });
-          }
-        });
-      });
-    }
   }, [pathname]);
-
-  return null;
-};
-
-// URL Sync Component - ensures browser URL stays in sync
-const URLSync = () => {
-  const location = useLocation();
-  
-  useEffect(() => {
-    // Force URL synchronization on location change
-    const currentPath = window.location.pathname;
-    if (currentPath !== location.pathname) {
-      window.history.replaceState(null, '', location.pathname + location.search + location.hash);
-    }
-    
-    // Disable caching for navigation
-    if (window.performance && window.performance.navigation) {
-      if (window.performance.navigation.type === 2) {
-        // Page was accessed by navigating into the history
-        window.location.reload();
-      }
-    }
-  }, [location]);
 
   return null;
 };
@@ -92,6 +55,21 @@ const ProtectedRoute = ({ element, allowedRole }) => {
   }
   
   return element;
+};
+
+// Simple 404 Component
+const NotFound = () => {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-6xl font-bold text-gray-900 mb-4">404</h1>
+        <p className="text-xl text-gray-600 mb-8">Page not found</p>
+        <a href="/" className="bg-gray-800 text-white px-6 py-3 rounded-lg hover:bg-gray-900 transition">
+          Go to Home
+        </a>
+      </div>
+    </div>
+  );
 };
 
 // About Page Component
@@ -133,37 +111,12 @@ const AboutPage = () => {
 };
 
 const App = () => {
-  useEffect(() => {
-    // Disable back-forward cache
-    window.addEventListener('pageshow', (event) => {
-      if (event.persisted) {
-        window.location.reload();
-      }
-    });
-
-    // Clear cache on app start
-    if ('caches' in window) {
-      caches.keys().then(names => {
-        names.forEach(name => {
-          if (name.includes('runtime') || name.includes('precache')) {
-            caches.delete(name);
-          }
-        });
-      });
-    }
-
-    return () => {
-      window.removeEventListener('pageshow', () => {});
-    };
-  }, []);
-
   return (
     <Router>
       <div className="App">
-        <URLSync />
         <ScrollToTop />
         <Navbar />
-        <div className="pt-16"> {/* Account for fixed navbar */}
+        <div className="pt-16"> 
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<HomePage />} />
@@ -180,7 +133,7 @@ const App = () => {
               element={<ViewInstitutionProfile />} 
             />
             
-            {/* Contact Form Route with proper URL handling */}
+            {/* Contact Form Route */}
             <Route path="/contact-form" element={<GoogleFormPage />} />
             
             {/* Protected Routes */}
@@ -197,15 +150,8 @@ const App = () => {
               element={<ProtectedRoute element={<AdminDashboard />} allowedRole="admin" />} 
             />
             
-            {/* 404 Route - Create NotFound component or use a simple div */}
-            {/* <Route path="/404" element={<NotFound />} /> */}
-            <Route path="/404" element={<div className="flex items-center justify-center h-96"><h1 className="text-2xl">404 - Page Not Found</h1></div>} />
-            
-            {/* Profile Settings Route - Create ProfileSettings component or remove */}
-            {/* <Route 
-              path="/profile-settings" 
-              element={<ProtectedRoute element={<ProfileSettings />} />} 
-            /> */}
+            {/* 404 Route */}
+            <Route path="/404" element={<NotFound />} />
             
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/404" replace />} />
