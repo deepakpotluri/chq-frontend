@@ -18,6 +18,9 @@ import CoursesPage from '../src/pages/CoursePage';
 import CourseDetailPage from '../src/pages/CourseDetailPage';
 import ViewInstitutionProfile from '../src/pages/ViewInstitutionProfile';
 
+// NEW: Google Form Page
+import GoogleFormPage from '../src/pages/GoogleFormPage';
+
 // ScrollToTop Component
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -91,7 +94,10 @@ const App = () => {
             <Route path="/courses" element={<CoursesPage />} />
             <Route path="/courses/:id" element={<CourseDetailPage />} />
             <Route path="/about" element={<AboutPage />} />
-             <Route path="/institutions/:id" element={<ViewInstitutionProfile />} />
+            <Route path="/institutions/:id" element={<ViewInstitutionProfile />} />
+            
+            {/* NEW: Google Form Route */}
+            <Route path="/contact-form" element={<GoogleFormPage />} />
             
             {/* Protected Routes */}
             <Route 
